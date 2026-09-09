@@ -192,6 +192,8 @@ class Booking {
     required this.extraTimeCharge,
     required this.status,
     required this.extras,
+    this.reservationType = 'external_rental',
+    this.churchGroup = '',
     this.bookingDepositPercent = 50,
     this.damageDepositRequired = 500,
     this.payments = const [],
@@ -219,6 +221,8 @@ class Booking {
   final double extraTimeCharge;
   final String status;
   final List<BookingExtra> extras;
+  final String reservationType;
+  final String churchGroup;
   final double bookingDepositPercent;
   final double damageDepositRequired;
   final List<PaymentRecord> payments;
@@ -226,11 +230,15 @@ class Booking {
   final String? clientSignaturePath;
   final DateTime? clientSignedAt;
 
-  double get extrasTotal =>
-      extras.fold<double>(0, (total, item) => total + item.total);
-  double get totalCharge => hallCharge + extraTimeCharge + extrasTotal;
+  bool get isChurchUse => reservationType == 'church_use';
+
+  double get extrasTotal => isChurchUse
+      ? 0
+      : extras.fold<double>(0, (total, item) => total + item.total);
+  double get totalCharge =>
+      isChurchUse ? 0 : hallCharge + extraTimeCharge + extrasTotal;
   double get requiredBookingDeposit =>
-      totalCharge * bookingDepositPercent / 100;
+      isChurchUse ? 0 : totalCharge * bookingDepositPercent / 100;
 
   double get rentalPaymentsTotal => payments
       .where((p) =>
@@ -243,11 +251,13 @@ class Booking {
       .fold<double>(0, (total, p) => total + p.amount);
 
   double get remainingRentalBalance {
+    if (isChurchUse) return 0;
     final remaining = totalCharge - rentalPaymentsTotal;
     return remaining > 0 ? remaining : 0;
   }
 
   double get damageDepositHeld {
+    if (isChurchUse) return 0;
     final received = payments
         .where((p) => p.paymentType == 'damage_deposit')
         .fold<double>(0, (total, p) => total + p.amount);
@@ -284,6 +294,8 @@ class Booking {
       extraTimeCharge: extraTimeCharge,
       status: status ?? this.status,
       extras: extras,
+      reservationType: reservationType,
+      churchGroup: churchGroup,
       bookingDepositPercent: bookingDepositPercent,
       damageDepositRequired: damageDepositRequired,
       payments: payments ?? this.payments,
