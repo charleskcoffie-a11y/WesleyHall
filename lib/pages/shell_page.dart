@@ -20,8 +20,13 @@ class ShellPage extends StatefulWidget {
 class _ShellPageState extends State<ShellPage> {
   int _index = 0;
   int _refreshToken = 0;
+  int _newBookingToken = 0;
 
-  void _goToNewBooking() => setState(() => _index = 2);
+  void _goToNewBooking() => setState(() {
+        _newBookingToken++;
+        _index = 2;
+      });
+
   void _goToPlanner() => setState(() => _index = 1);
   void _goToBookings() => setState(() => _index = 3);
   void _refresh() => setState(() => _refreshToken++);
@@ -42,6 +47,7 @@ class _ShellPageState extends State<ShellPage> {
         onNewBooking: _goToNewBooking,
       ),
       NewBookingPage(
+        key: ValueKey('new-booking-$_newBookingToken'),
         repository: widget.repository,
         onSaved: () {
           _refresh();
@@ -74,16 +80,23 @@ class _ShellPageState extends State<ShellPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('WESLEY HALL',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 21,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .4,
-                            )),
+                        Text(
+                          'WESLEY HALL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .4,
+                          ),
+                        ),
                         SizedBox(height: 4),
-                        Text('GMCT Booking & Planning',
-                            style: TextStyle(color: Color(0xFFB9D2C8), fontSize: 12)),
+                        Text(
+                          'GMCT Booking & Planning',
+                          style: TextStyle(
+                            color: Color(0xFFB9D2C8),
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -103,15 +116,22 @@ class _ShellPageState extends State<ShellPage> {
                       ),
                       child: const Text(
                         'DEMO MODE\nSupabase is not connected yet.',
-                        style: TextStyle(color: Color(0xFFD8E7E1), fontSize: 11, height: 1.4),
+                        style: TextStyle(
+                          color: Color(0xFFD8E7E1),
+                          fontSize: 11,
+                          height: 1.4,
+                        ),
                       ),
                     )
                   else
                     Padding(
                       padding: const EdgeInsets.all(14),
                       child: TextButton.icon(
-                        onPressed: () => Supabase.instance.client.auth.signOut(),
-                        style: TextButton.styleFrom(foregroundColor: Colors.white),
+                        onPressed: () =>
+                            Supabase.instance.client.auth.signOut(),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                        ),
                         icon: const Icon(Icons.logout),
                         label: const Text('Sign Out'),
                       ),
@@ -133,22 +153,37 @@ class _ShellPageState extends State<ShellPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       child: Material(
-        color: selected ? Colors.white.withValues(alpha: .13) : Colors.transparent,
+        color: selected
+            ? Colors.white.withValues(alpha: .13)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () => setState(() => _index = index),
+          onTap: index == 2
+              ? _goToNewBooking
+              : () => setState(() => _index = index),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                Icon(icon, color: selected ? Colors.white : const Color(0xFFB9D2C8), size: 21),
+                Icon(
+                  icon,
+                  color: selected
+                      ? Colors.white
+                      : const Color(0xFFB9D2C8),
+                  size: 21,
+                ),
                 const SizedBox(width: 12),
-                Text(label,
-                    style: TextStyle(
-                      color: selected ? Colors.white : const Color(0xFFB9D2C8),
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    )),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : const Color(0xFFB9D2C8),
+                    fontWeight:
+                        selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
