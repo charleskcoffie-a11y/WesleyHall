@@ -54,6 +54,7 @@ class DemoWesleyRepository implements WesleyRepository {
   final List<Booking> bookings = [];
   Uint8List? signature;
   Uint8List? organizationLogo;
+  final Map<String, Uint8List> clientSignatures = {};
 
   @override
   bool get isDemoMode => true;
@@ -98,6 +99,27 @@ class DemoWesleyRepository implements WesleyRepository {
 
   @override
   Future<Uint8List?> loadManagerSignature(String? path) async => signature;
+
+  @override
+  Future<String?> saveClientSignature(String bookingId, Uint8List bytes) async {
+    clientSignatures[bookingId] = bytes;
+    final i = bookings.indexWhere((b) => b.id == bookingId);
+    if (i >= 0) {
+      bookings[i] = bookings[i].copyWith(
+        clientSignaturePath: 'demo/contracts/$bookingId/client-signature.png',
+        clientSignedAt: DateTime.now(),
+      );
+    }
+    return 'demo/contracts/$bookingId/client-signature.png';
+  }
+
+  @override
+  Future<Uint8List?> loadClientSignature(String? path) async {
+    if (path == null) return null;
+    final parts = path.split('/');
+    if (parts.length < 3) return null;
+    return clientSignatures[parts[2]];
+  }
 
   void seed() {
     if (bookings.isNotEmpty) return;
