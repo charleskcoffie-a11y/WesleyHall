@@ -11,6 +11,7 @@ class ContractService {
     required SettingsBundle settings,
     Uint8List? managerSignature,
     Uint8List? organizationLogo,
+    Uint8List? clientSignature,
   }) async {
     final pdf = pw.Document();
     final org = settings.organization;
@@ -21,6 +22,9 @@ class ContractService {
     final logoImage = organizationLogo == null
         ? null
         : pw.MemoryImage(organizationLogo);
+    final clientSignatureImage = clientSignature == null
+        ? null
+        : pw.MemoryImage(clientSignature);
 
     final requiredDeposit = booking.requiredBookingDeposit;
     final rentalBalance = booking.remainingRentalBalance;
@@ -69,7 +73,8 @@ class ContractService {
         ),
         build: (context) => [
           pw.Text('HALL RENTAL AGREEMENT',
-              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              style: pw.TextStyle(
+                  fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 10),
           _twoColumn([
             ['Reference No.', booking.referenceNumber],
@@ -92,7 +97,8 @@ class ContractService {
             children: [
               _row('Event Date', _date(booking.eventDate)),
               _row('Setup / Hall Access', _dateTime(booking.accessStart)),
-              _row('Event Time', '${_time(booking.eventStart)} - ${_time(booking.eventEnd)}'),
+              _row('Event Time',
+                  '${_time(booking.eventStart)} - ${_time(booking.eventEnd)}'),
               _row('Hall Must Be Vacated By', _dateTime(booking.vacateEnd)),
             ],
           ),
@@ -111,12 +117,18 @@ class ContractService {
                   e.total)),
               if (booking.extraTimeCharge > 0)
                 _moneyRow('Additional Time', booking.extraTimeCharge),
-              _moneyRow('Total Amount Charged', booking.totalCharge, bold: true),
-              _moneyRow('Required Non-Refundable Booking Deposit (${booking.bookingDepositPercent.toStringAsFixed(0)}%)', requiredDeposit),
+              _moneyRow('Total Amount Charged', booking.totalCharge,
+                  bold: true),
+              _moneyRow(
+                  'Required Non-Refundable Booking Deposit (${booking.bookingDepositPercent.toStringAsFixed(0)}%)',
+                  requiredDeposit),
               _moneyRow('Booking Deposit Received', booking.bookingDepositPaid),
-              _moneyRow('Rental Balance Outstanding', rentalBalance, bold: true),
-              _moneyRow('Separate Refundable Damage Deposit', booking.damageDepositRequired),
-              _moneyRow('Damage Deposit Currently Held', booking.damageDepositHeld),
+              _moneyRow('Rental Balance Outstanding', rentalBalance,
+                  bold: true),
+              _moneyRow('Separate Refundable Damage Deposit',
+                  booking.damageDepositRequired),
+              _moneyRow(
+                  'Damage Deposit Currently Held', booking.damageDepositHeld),
             ],
           ),
           pw.SizedBox(height: 12),
@@ -126,16 +138,19 @@ class ContractService {
             style: const pw.TextStyle(fontSize: 9.5),
           ),
           pw.Bullet(
-            text: 'Normal setup access allowance: ${_duration(rules.setupMinutesBefore)} before the event.',
+            text:
+                'Normal setup access allowance: ${_duration(rules.setupMinutesBefore)} before the event.',
             style: const pw.TextStyle(fontSize: 9.5),
           ),
           pw.Bullet(
-            text: 'Normal cleanup/vacate allowance: ${_duration(rules.cleanupMinutesAfter)} after the event.',
+            text:
+                'Normal cleanup/vacate allowance: ${_duration(rules.cleanupMinutesAfter)} after the event.',
             style: const pw.TextStyle(fontSize: 9.5),
           ),
           if (rules.extraHourRate > 0)
             pw.Bullet(
-              text: 'Additional approved rental time is charged at \$${rules.extraHourRate.toStringAsFixed(2)} per hour.',
+              text:
+                  'Additional approved rental time is charged at \$${rules.extraHourRate.toStringAsFixed(2)} per hour.',
               style: const pw.TextStyle(fontSize: 9.5),
             ),
           pw.SizedBox(height: 8),
@@ -152,7 +167,7 @@ class ContractService {
             'I, ${booking.clientName}, have read and agree to the terms and conditions of this contract.',
             style: const pw.TextStyle(fontSize: 10),
           ),
-          pw.SizedBox(height: 28),
+          pw.SizedBox(height: 18),
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
@@ -160,10 +175,25 @@ class ContractService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
+                    if (clientSignatureImage != null)
+                      pw.Container(
+                        height: 52,
+                        alignment: pw.Alignment.bottomLeft,
+                        child: pw.Image(clientSignatureImage,
+                            fit: pw.BoxFit.contain),
+                      )
+                    else
+                      pw.SizedBox(height: 52),
                     pw.Container(height: 1, color: PdfColors.black),
                     pw.SizedBox(height: 4),
-                    pw.Text('Client Signature', style: const pw.TextStyle(fontSize: 9)),
-                    pw.Text('Date: ____________________', style: const pw.TextStyle(fontSize: 9)),
+                    pw.Text('Client Signature',
+                        style: const pw.TextStyle(fontSize: 9)),
+                    pw.Text(
+                      booking.clientSignedAt == null
+                          ? 'Date: ____________________'
+                          : 'Signed: ${_dateTime(booking.clientSignedAt!)}',
+                      style: const pw.TextStyle(fontSize: 9),
+                    ),
                   ],
                 ),
               ),
@@ -172,19 +202,25 @@ class ContractService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    if (org.autoIncludeManagerSignature && signatureImage != null)
+                    if (org.autoIncludeManagerSignature &&
+                        signatureImage != null)
                       pw.Container(
-                        height: 40,
+                        height: 52,
                         alignment: pw.Alignment.bottomLeft,
                         child: pw.Image(signatureImage, fit: pw.BoxFit.contain),
                       )
                     else
-                      pw.SizedBox(height: 40),
+                      pw.SizedBox(height: 52),
                     pw.Container(height: 1, color: PdfColors.black),
                     pw.SizedBox(height: 4),
-                    pw.Text(org.managerName.isEmpty ? 'Authorized Manager' : org.managerName,
-                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                    pw.Text(org.managerTitle, style: const pw.TextStyle(fontSize: 8.5)),
+                    pw.Text(
+                        org.managerName.isEmpty
+                            ? 'Authorized Manager'
+                            : org.managerName,
+                        style: pw.TextStyle(
+                            fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(org.managerTitle,
+                        style: const pw.TextStyle(fontSize: 8.5)),
                   ],
                 ),
               ),
@@ -202,7 +238,8 @@ class ContractService {
         padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 7),
         color: PdfColors.grey200,
         child: pw.Text(text,
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+            style:
+                pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
       );
 
   pw.Widget _twoColumn(List<List<String>> values) => pw.Table(
@@ -218,7 +255,8 @@ class ContractService {
         pw.Padding(
           padding: const pw.EdgeInsets.all(5),
           child: pw.Text(label,
-              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+              style: pw.TextStyle(
+                  fontSize: 9, fontWeight: pw.FontWeight.bold)),
         ),
         pw.Padding(
           padding: const pw.EdgeInsets.all(5),
@@ -226,29 +264,42 @@ class ContractService {
         ),
       ]);
 
-  pw.TableRow _moneyRow(String label, double value, {bool bold = false}) => pw.TableRow(children: [
+  pw.TableRow _moneyRow(String label, double value, {bool bold = false}) =>
+      pw.TableRow(children: [
         pw.Padding(
           padding: const pw.EdgeInsets.all(5),
           child: pw.Text(label,
-              style: pw.TextStyle(fontSize: 9, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+              style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight:
+                      bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
         ),
         pw.Padding(
           padding: const pw.EdgeInsets.all(5),
           child: pw.Text('\$${value.toStringAsFixed(2)}',
               textAlign: pw.TextAlign.right,
-              style: pw.TextStyle(fontSize: 9, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+              style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight:
+                      bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
         ),
       ]);
 
-  String _date(DateTime d) => '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+  String _date(DateTime d) =>
+      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+
   String _time(DateTime d) {
     final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
     final m = d.minute.toString().padLeft(2, '0');
     return '$h:$m ${d.hour >= 12 ? 'PM' : 'AM'}';
   }
+
   String _dateTime(DateTime d) => '${_date(d)} ${_time(d)}';
+
   String _duration(int minutes) {
-    if (minutes % 60 == 0) return '${minutes ~/ 60} hour${minutes == 60 ? '' : 's'}';
+    if (minutes % 60 == 0) {
+      return '${minutes ~/ 60} hour${minutes == 60 ? '' : 's'}';
+    }
     return '$minutes minutes';
   }
 }
