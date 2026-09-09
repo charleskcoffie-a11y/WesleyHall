@@ -53,6 +53,7 @@ class DemoWesleyRepository implements WesleyRepository {
   SettingsBundle settings;
   final List<Booking> bookings = [];
   Uint8List? signature;
+  Uint8List? organizationLogo;
 
   @override
   bool get isDemoMode => true;
@@ -79,6 +80,15 @@ class DemoWesleyRepository implements WesleyRepository {
   @override
   Future<void> saveServices(List<ServiceItem> value) async =>
       settings = settings.copyWith(services: [...value]);
+
+  @override
+  Future<String?> uploadOrganizationLogo(Uint8List bytes, String extension) async {
+    organizationLogo = bytes;
+    return 'demo/church-logo.$extension';
+  }
+
+  @override
+  Future<Uint8List?> loadOrganizationLogo(String? path) async => organizationLogo;
 
   @override
   Future<String?> uploadManagerSignature(Uint8List bytes, String extension) async {
