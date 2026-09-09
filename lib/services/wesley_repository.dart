@@ -16,6 +16,8 @@ abstract class WesleyRepository {
   Future<Uint8List?> loadOrganizationLogo(String? path);
   Future<String?> uploadManagerSignature(Uint8List bytes, String extension);
   Future<Uint8List?> loadManagerSignature(String? path);
+  Future<String?> saveClientSignature(String bookingId, Uint8List bytes);
+  Future<Uint8List?> loadClientSignature(String? path);
 
   Future<List<Booking>> listBookings();
   Future<void> createBooking(Booking booking);
