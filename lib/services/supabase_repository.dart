@@ -19,20 +19,15 @@ class SupabaseWesleyRepository implements WesleyRepository {
         await client.from('wesley_organization_settings').select().limit(1);
     final ruleRows =
         await client.from('wesley_rental_settings').select().limit(1);
-    final spacesRows = await client
-        .from('wesley_hall_spaces')
-        .select()
-        .eq('active', true)
-        .order('name');
+    final spacesRows =
+        await client.from('wesley_hall_spaces').select().order('name');
     final servicesRows = await client
         .from('wesley_services')
         .select()
-        .eq('active', true)
         .order('display_order');
     final termsRows = await client
         .from('wesley_rental_terms')
         .select()
-        .eq('active', true)
         .order('display_order');
 
     final org = orgRows.first as Map<String, dynamic>;
@@ -178,6 +173,21 @@ class SupabaseWesleyRepository implements WesleyRepository {
     }
   }
 
+  @override
+  Future<void> deleteTerm(String id) async {
+    await client.from('wesley_rental_terms').delete().eq('id', id);
+  }
+
+  @override
+  Future<void> deleteSpace(String id) async {
+    await client.from('wesley_hall_spaces').delete().eq('id', id);
+  }
+
+  @override
+  Future<void> deleteService(String id) async {
+    await client.from('wesley_services').delete().eq('id', id);
+  }
+
   Future<String?> _uploadImage(
     Uint8List bytes,
     String extension,
@@ -199,7 +209,12 @@ class SupabaseWesleyRepository implements WesleyRepository {
   @override
   Future<String?> uploadOrganizationLogo(
       Uint8List bytes, String extension) async {
-    return _uploadImage(bytes, extension, 'organization-logos', 'church-logo');
+    return _uploadImage(
+      bytes,
+      extension,
+      'organization-logos',
+      'church-logo',
+    );
   }
 
   @override
@@ -212,7 +227,11 @@ class SupabaseWesleyRepository implements WesleyRepository {
   Future<String?> uploadManagerSignature(
       Uint8List bytes, String extension) async {
     return _uploadImage(
-        bytes, extension, 'manager-signatures', 'manager-signature');
+      bytes,
+      extension,
+      'manager-signatures',
+      'manager-signature',
+    );
   }
 
   @override
