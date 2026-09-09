@@ -7,7 +7,7 @@ class DemoWesleyRepository implements WesleyRepository {
   DemoWesleyRepository()
       : settings = SettingsBundle(
           organization: const OrganizationSettings(
-            churchName: 'THE METHODIST CHURCH OF GHANA - TORONTO CIRCUIT',
+            churchName: 'THE METHODIST CHURCH GHANA',
             hallName: 'WESLEY HALL',
             address: '69 Milvan Dr., North York, Ontario M9L 1Y8',
             phone: '(416) 901-5900',
@@ -28,8 +28,8 @@ class DemoWesleyRepository implements WesleyRepository {
             chargeCleanupTime: false,
           ),
           spaces: const [
-            HallSpace(id: 'full-hall', name: 'Full Hall', baseRate: 1500, capacity: null),
-            HallSpace(id: 'half-hall', name: 'Half Hall', baseRate: 800, capacity: null),
+            HallSpace(id: 'full-hall', name: 'Full Hall', baseRate: 1500, capacity: 180),
+            HallSpace(id: 'half-hall', name: 'Half Hall', baseRate: 800, capacity: 90),
           ],
           services: const [
             ServiceItem(id: 'kitchen-cooking', name: 'Kitchen - Cooking', pricingType: 'flat', price: 500),
@@ -81,6 +81,21 @@ class DemoWesleyRepository implements WesleyRepository {
   @override
   Future<void> saveServices(List<ServiceItem> value) async =>
       settings = settings.copyWith(services: [...value]);
+
+  @override
+  Future<void> deleteTerm(String id) async => settings = settings.copyWith(
+        terms: settings.terms.where((e) => e.id != id).toList(),
+      );
+
+  @override
+  Future<void> deleteSpace(String id) async => settings = settings.copyWith(
+        spaces: settings.spaces.where((e) => e.id != id).toList(),
+      );
+
+  @override
+  Future<void> deleteService(String id) async => settings = settings.copyWith(
+        services: settings.services.where((e) => e.id != id).toList(),
+      );
 
   @override
   Future<String?> uploadOrganizationLogo(Uint8List bytes, String extension) async {
@@ -168,8 +183,12 @@ class DemoWesleyRepository implements WesleyRepository {
     if (i < 0) return;
     final b = bookings[i];
     final payments = [...b.payments, payment];
-    final deposit = payments.where((p) => p.paymentType == 'booking_deposit').fold<double>(0, (t, p) => t + p.amount);
-    final status = deposit >= b.requiredBookingDeposit ? 'confirmed' : 'awaiting_deposit';
+    final deposit = payments
+        .where((p) => p.paymentType == 'booking_deposit')
+        .fold<double>(0, (t, p) => t + p.amount);
+    final status = deposit >= b.requiredBookingDeposit
+        ? 'confirmed'
+        : 'awaiting_deposit';
     bookings[i] = b.copyWith(payments: payments, status: status);
   }
 
@@ -189,8 +208,12 @@ class DemoWesleyRepository implements WesleyRepository {
     seed();
     return bookings.any((b) {
       if (b.id == excludeBookingId || b.status == 'cancelled') return false;
-      final sameResource = b.hallSpaceId == hallSpaceId || b.hallSpaceId == 'full-hall' || hallSpaceId == 'full-hall';
-      return sameResource && accessStart.isBefore(b.vacateEnd) && vacateEnd.isAfter(b.accessStart);
+      final sameResource = b.hallSpaceId == hallSpaceId ||
+          b.hallSpaceId == 'full-hall' ||
+          hallSpaceId == 'full-hall';
+      return sameResource &&
+          accessStart.isBefore(b.vacateEnd) &&
+          vacateEnd.isAfter(b.accessStart);
     });
   }
 }
