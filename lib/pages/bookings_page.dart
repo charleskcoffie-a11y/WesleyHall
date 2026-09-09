@@ -30,11 +30,17 @@ class _BookingsPageState extends State<BookingsPage> {
   Future<void> _printContract(Booking booking) async {
     try {
       final settings = await widget.repository.loadSettings();
-      final signature = await widget.repository.loadManagerSignature(settings.organization.managerSignaturePath);
+      final signature = await widget.repository.loadManagerSignature(
+        settings.organization.managerSignaturePath,
+      );
+      final logo = await widget.repository.loadOrganizationLogo(
+        settings.organization.organizationLogoPath,
+      );
       final bytes = await ContractService().buildContract(
         booking: booking,
         settings: settings,
         managerSignature: signature,
+        organizationLogo: logo,
       );
       await Printing.layoutPdf(
         name: '${booking.referenceNumber} - Wesley Hall Agreement',
@@ -70,7 +76,8 @@ class _BookingsPageState extends State<BookingsPage> {
         children: [
           const PageHeader(
             title: 'Bookings',
-            subtitle: 'Search bookings, review hall access times, and print agreements.',
+            subtitle:
+                'Search bookings, review hall access times, and print agreements for signature.',
           ),
           const SizedBox(height: 18),
           Row(
@@ -82,7 +89,8 @@ class _BookingsPageState extends State<BookingsPage> {
                     hintText: 'Search client, event, or reference...',
                     prefixIcon: Icon(Icons.search),
                   ),
-                  onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+                  onChanged: (value) =>
+                      setState(() => _search = value.trim().toLowerCase()),
                 ),
               ),
               const SizedBox(width: 12),
@@ -93,18 +101,25 @@ class _BookingsPageState extends State<BookingsPage> {
                   decoration: const InputDecoration(labelText: 'Status'),
                   items: const [
                     DropdownMenuItem(value: 'all', child: Text('All Statuses')),
-                    DropdownMenuItem(value: 'awaiting_deposit', child: Text('Awaiting Deposit')),
-                    DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
-                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                    DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                    DropdownMenuItem(
+                        value: 'awaiting_deposit',
+                        child: Text('Awaiting Deposit')),
+                    DropdownMenuItem(
+                        value: 'confirmed', child: Text('Confirmed')),
+                    DropdownMenuItem(
+                        value: 'completed', child: Text('Completed')),
+                    DropdownMenuItem(
+                        value: 'cancelled', child: Text('Cancelled')),
                   ],
-                  onChanged: (value) => setState(() => _status = value ?? 'all'),
+                  onChanged: (value) =>
+                      setState(() => _status = value ?? 'all'),
                 ),
               ),
               const Spacer(),
               IconButton(
                 tooltip: 'Refresh',
-                onPressed: () => setState(() => _future = widget.repository.listBookings()),
+                onPressed: () =>
+                    setState(() => _future = widget.repository.listBookings()),
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -112,6 +127,7 @@ class _BookingsPageState extends State<BookingsPage> {
           const SizedBox(height: 14),
           Expanded(
             child: Card(
+              clipBehavior: Clip.antiAlias,
               child: FutureBuilder<List<Booking>>(
                 future: _future,
                 builder: (context, snapshot) {
@@ -119,10 +135,14 @@ class _BookingsPageState extends State<BookingsPage> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(child: Text('Unable to load bookings: ${snapshot.error}'));
+                    return Center(
+                      child: Text('Unable to load bookings: ${snapshot.error}'),
+                    );
                   }
+
                   final rows = (snapshot.data ?? const <Booking>[]).where((b) {
-                    final matchesStatus = _status == 'all' || b.status == _status;
+                    final matchesStatus =
+                        _status == 'all' || b.status == _status;
                     if (!matchesStatus) return false;
                     if (_search.isEmpty) return true;
                     return b.clientName.toLowerCase().contains(_search) ||
@@ -130,57 +150,124 @@ class _BookingsPageState extends State<BookingsPage> {
                         b.referenceNumber.toLowerCase().contains(_search);
                   }).toList();
 
-                  if (rows.isEmpty) return const Center(child: Text('No bookings found.'));
+                  if (rows.isEmpty) {
+                    return const Center(child: Text('No bookings found.'));
+                  }
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(14),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: DataTable(
-                        columns: const [
-                          DataColumn(label: Text('REF')),
-                          DataColumn(label: Text('EVENT DATE')),
-                          DataColumn(label: Text('CLIENT / EVENT')),
-                          DataColumn(label: Text('HALL')),
-                          DataColumn(label: Text('ACCESS - VACATE')),
-                          DataColumn(label: Text('STATUS')),
-                          DataColumn(label: Text('TOTAL')),
-                          DataColumn(label: Text('ACTIONS')),
-                        ],
-                        rows: rows.map((b) => DataRow(cells: [
-                          DataCell(Text(b.referenceNumber, style: const TextStyle(fontWeight: FontWeight.w600)), onTap: () => _openBooking(b)),
-                          DataCell(Text(_date(b.eventDate))),
-                          DataCell(SizedBox(
-                            width: 220,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(b.clientName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                Text(b.eventDetails, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                              ],
-                            ),
-                          )),
-                          DataCell(Text(b.hallSpaceName)),
-                          DataCell(Text('${_time(b.accessStart)} - ${_time(b.vacateEnd)}')),
-                          DataCell(Chip(label: Text(b.status.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700)))),
-                          DataCell(Text('\$${b.totalCharge.toStringAsFixed(2)}')),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Open Booking / Payments',
-                                onPressed: () => _openBooking(b),
-                                icon: const Icon(Icons.open_in_new),
+                  return Scrollbar(
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.all(14),
+                      child: SingleChildScrollView(
+                        child: DataTable(
+                          columnSpacing: 22,
+                          dataRowMinHeight: 66,
+                          dataRowMaxHeight: 78,
+                          columns: const [
+                            DataColumn(label: Text('REF')),
+                            DataColumn(label: Text('EVENT DATE')),
+                            DataColumn(label: Text('CLIENT / EVENT')),
+                            DataColumn(label: Text('HALL')),
+                            DataColumn(label: Text('ACCESS / VACATE')),
+                            DataColumn(label: Text('STATUS')),
+                            DataColumn(label: Text('TOTAL')),
+                            DataColumn(label: Text('ACTIONS')),
+                          ],
+                          rows: rows.map((b) {
+                            return DataRow(cells: [
+                              DataCell(
+                                Text(
+                                  b.referenceNumber,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                onTap: () => _openBooking(b),
                               ),
-                              IconButton(
-                                tooltip: 'Print Contract',
-                                onPressed: () => _printContract(b),
-                                icon: const Icon(Icons.print_outlined),
+                              DataCell(Text(_date(b.eventDate))),
+                              DataCell(
+                                SizedBox(
+                                  width: 220,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        b.clientName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      Text(
+                                        b.eventDetails,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ],
-                          )),
-                        ])).toList(),
+                              DataCell(Text(b.hallSpaceName)),
+                              DataCell(
+                                SizedBox(
+                                  width: 170,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Access  ${_time(b.accessStart)}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text('Vacate  ${_time(b.vacateEnd)}'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                Chip(
+                                  label: Text(
+                                    b.status
+                                        .replaceAll('_', ' ')
+                                        .toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              DataCell(Text(
+                                  '\$${b.totalCharge.toStringAsFixed(2)}')),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () => _openBooking(b),
+                                      icon: const Icon(Icons.open_in_new,
+                                          size: 17),
+                                      label: const Text('Open'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    FilledButton.tonalIcon(
+                                      onPressed: () => _printContract(b),
+                                      icon: const Icon(Icons.print_outlined,
+                                          size: 17),
+                                      label: const Text('Print Contract'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ]);
+                          }).toList(),
+                        ),
                       ),
                     ),
                   );
@@ -193,7 +280,9 @@ class _BookingsPageState extends State<BookingsPage> {
     );
   }
 
-  String _date(DateTime d) => '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+  String _date(DateTime d) =>
+      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+
   String _time(DateTime d) {
     final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
     return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
