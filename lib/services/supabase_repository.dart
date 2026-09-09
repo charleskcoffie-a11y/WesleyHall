@@ -222,6 +222,30 @@ class SupabaseWesleyRepository implements WesleyRepository {
   }
 
   @override
+  Future<String?> saveClientSignature(String bookingId, Uint8List bytes) async {
+    final path = 'contracts/$bookingId/client-signature.png';
+    await client.storage.from('wesley-hall-private').uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(
+            upsert: true,
+            contentType: 'image/png',
+          ),
+        );
+    await client.from('wesley_bookings').update({
+      'client_signature_path': path,
+      'client_signed_at': DateTime.now().toIso8601String(),
+    }).eq('id', bookingId);
+    return path;
+  }
+
+  @override
+  Future<Uint8List?> loadClientSignature(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    return client.storage.from('wesley-hall-private').download(path);
+  }
+
+  @override
   Future<List<Booking>> listBookings() async {
     final rows = await client
         .from('wesley_bookings')
@@ -262,6 +286,10 @@ class SupabaseWesleyRepository implements WesleyRepository {
         damageDepositRequired:
             (row['damage_deposit_required'] as num?)?.toDouble() ?? 500,
         notes: row['notes'] as String? ?? '',
+        clientSignaturePath: row['client_signature_path'] as String?,
+        clientSignedAt: row['client_signed_at'] == null
+            ? null
+            : DateTime.tryParse(row['client_signed_at'].toString()),
         extras: extrasRaw.map<BookingExtra>((e) {
           final item = e as Map<String, dynamic>;
           final service = item['service'] as Map<String, dynamic>?;
