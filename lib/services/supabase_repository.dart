@@ -47,6 +47,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
         email: org['email'] as String? ?? '',
         managerName: org['manager_name'] as String? ?? '',
         managerTitle: org['manager_title'] as String? ?? '',
+        organizationLogoPath: org['organization_logo_path'] as String?,
         managerSignaturePath: org['manager_signature_path'] as String?,
         autoIncludeManagerSignature:
             org['auto_include_manager_signature'] as bool? ?? true,
@@ -114,6 +115,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
       'email': settings.email,
       'manager_name': settings.managerName,
       'manager_title': settings.managerTitle,
+      'organization_logo_path': settings.organizationLogoPath,
       'manager_signature_path': settings.managerSignaturePath,
       'auto_include_manager_signature': settings.autoIncludeManagerSignature,
     });
@@ -176,11 +178,13 @@ class SupabaseWesleyRepository implements WesleyRepository {
     }
   }
 
-  @override
-  Future<String?> uploadManagerSignature(
-      Uint8List bytes, String extension) async {
-    const pathBase = 'manager-signatures/manager-signature';
-    final path = '$pathBase.$extension';
+  Future<String?> _uploadImage(
+    Uint8List bytes,
+    String extension,
+    String folder,
+    String fileName,
+  ) async {
+    final path = '$folder/$fileName.$extension';
     await client.storage.from('wesley-hall-private').uploadBinary(
           path,
           bytes,
@@ -190,6 +194,25 @@ class SupabaseWesleyRepository implements WesleyRepository {
           ),
         );
     return path;
+  }
+
+  @override
+  Future<String?> uploadOrganizationLogo(
+      Uint8List bytes, String extension) async {
+    return _uploadImage(bytes, extension, 'organization-logos', 'church-logo');
+  }
+
+  @override
+  Future<Uint8List?> loadOrganizationLogo(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    return client.storage.from('wesley-hall-private').download(path);
+  }
+
+  @override
+  Future<String?> uploadManagerSignature(
+      Uint8List bytes, String extension) async {
+    return _uploadImage(
+        bytes, extension, 'manager-signatures', 'manager-signature');
   }
 
   @override
