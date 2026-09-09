@@ -63,41 +63,43 @@ class _NewBookingPageState extends State<NewBookingPage> {
   }
 
   Future<void> load() async {
-    final s = await widget.repository.loadSettings();
+    final value = await widget.repository.loadSettings();
     if (!mounted) return;
+    final spaces = value.spaces.where((e) => e.active).toList();
     setState(() {
-      settings = s;
-      final activeSpaces = s.spaces.where((space) => space.active).toList();
-      if (activeSpaces.isNotEmpty) {
-        hallId = activeSpaces.first.id;
-        hallCharge.text = activeSpaces.first.baseRate.toStringAsFixed(2);
+      settings = value;
+      if (spaces.isNotEmpty) {
+        hallId = spaces.first.id;
+        hallCharge.text = spaces.first.baseRate.toStringAsFixed(2);
       }
     });
-    checkAvailability();
+    await checkAvailability();
   }
 
-  void changeReservationType(String type) {
+  void setReservationType(String type) {
     final s = settings;
     if (s == null) return;
     setState(() {
       reservationType = type;
       selected.clear();
-      if (type == 'church_use') {
+      if (isChurchUse) {
         hallCharge.text = '0.00';
       } else if (hallId != null) {
-        final hall = s.spaces.firstWhere((space) => space.id == hallId);
-        hallCharge.text = hall.baseRate.toStringAsFixed(2);
+        hallCharge.text = s.spaces
+            .firstWhere((e) => e.id == hallId)
+            .baseRate
+            .toStringAsFixed(2);
       }
     });
   }
 
-  DateTime combine(TimeOfDay time, {bool finish = false}) {
-    var value = DateTime(
+  DateTime combine(TimeOfDay value, {bool finish = false}) {
+    var result = DateTime(
       eventDate.year,
       eventDate.month,
       eventDate.day,
-      time.hour,
-      time.minute,
+      value.hour,
+      value.minute,
     );
     final startValue = DateTime(
       eventDate.year,
@@ -106,10 +108,10 @@ class _NewBookingPageState extends State<NewBookingPage> {
       start.hour,
       start.minute,
     );
-    if (finish && !value.isAfter(startValue)) {
-      value = value.add(const Duration(days: 1));
+    if (finish && !result.isAfter(startValue)) {
+      result = result.add(const Duration(days: 1));
     }
-    return value;
+    return result;
   }
 
   DateTime get eventStart => combine(start);
@@ -121,28 +123,29 @@ class _NewBookingPageState extends State<NewBookingPage> {
         Duration(minutes: settings?.rules.cleanupMinutesAfter ?? 0),
       );
 
-  double get hallValue => isChurchUse ? 0 : double.tryParse(hallCharge.text) ?? 0;
+  double get hallValue => isChurchUse
+      ? 0.0
+      : double.tryParse(hallCharge.text.trim()) ?? 0.0;
 
   double get extrasTotal {
-    if (isChurchUse || settings == null) return 0;
+    if (isChurchUse || settings == null) return 0.0;
     return settings!.services.fold<double>(
-      0,
-      (total, service) => total + (selected[service.id] ?? 0) * service.price,
+      0.0,
+      (sum, item) => sum + (selected[item.id] ?? 0.0) * item.price,
     );
   }
 
   double get extraTime {
-    if (isChurchUse) return 0;
+    if (isChurchUse) return 0.0;
     final rules = settings?.rules;
-    if (rules == null || rules.extraHourRate <= 0) return 0;
+    if (rules == null || rules.extraHourRate <= 0) return 0.0;
     final extraMinutes = eventEnd.difference(eventStart).inMinutes -
         rules.standardRentalHours * 60;
-    return extraMinutes > 0
-        ? (extraMinutes / 60).ceil() * rules.extraHourRate
-        : 0;
+    if (extraMinutes <= 0) return 0.0;
+    return (extraMinutes / 60).ceil() * rules.extraHourRate;
   }
 
-  double get total => isChurchUse ? 0 : hallValue + extrasTotal + extraTime;
+  double get total => isChurchUse ? 0.0 : hallValue + extrasTotal + extraTime;
 
   Future<void> checkAvailability() async {
     if (settings == null || hallId == null) return;
@@ -163,19 +166,18 @@ class _NewBookingPageState extends State<NewBookingPage> {
 
     setState(() => saving = true);
     try {
-      final hall = settings!.spaces.firstWhere((space) => space.id == hallId);
+      final s = settings!;
+      final hall = s.spaces.firstWhere((e) => e.id == hallId);
       final extras = isChurchUse
           ? <BookingExtra>[]
-          : settings!.services
-              .where((service) => (selected[service.id] ?? 0) > 0)
-              .map(
-                (service) => BookingExtra(
-                  serviceId: service.id,
-                  name: service.name,
-                  quantity: selected[service.id]!,
-                  unitPrice: service.price,
-                ),
-              )
+          : s.services
+              .where((e) => (selected[e.id] ?? 0.0) > 0)
+              .map((e) => BookingExtra(
+                    serviceId: e.id,
+                    name: e.name,
+                    quantity: selected[e.id]!,
+                    unitPrice: e.price,
+                  ))
               .toList();
 
       final booking = Booking(
@@ -191,19 +193,19 @@ class _NewBookingPageState extends State<NewBookingPage> {
         accessStart: accessStart,
         vacateEnd: vacateEnd,
         eventDetails: details.text.trim(),
-        guestCount: int.tryParse(guests.text) ?? 0,
+        guestCount: int.tryParse(guests.text.trim()) ?? 0,
         hallSpaceId: hall.id,
         hallSpaceName: hall.name,
-        hallCharge: isChurchUse ? 0 : hallValue,
-        extraTimeCharge: isChurchUse ? 0 : extraTime,
+        hallCharge: isChurchUse ? 0.0 : hallValue,
+        extraTimeCharge: isChurchUse ? 0.0 : extraTime,
         status: isChurchUse ? 'reserved' : 'awaiting_deposit',
+        extras: extras,
         reservationType: reservationType,
         churchGroup: isChurchUse ? churchGroup.text.trim() : '',
-        extras: extras,
         bookingDepositPercent:
-            isChurchUse ? 0 : settings!.rules.bookingDepositPercent,
+            isChurchUse ? 0.0 : s.rules.bookingDepositPercent,
         damageDepositRequired:
-            isChurchUse ? 0 : settings!.rules.damageDepositAmount,
+            isChurchUse ? 0.0 : s.rules.damageDepositAmount,
         notes: notes.text.trim(),
       );
 
@@ -211,18 +213,16 @@ class _NewBookingPageState extends State<NewBookingPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            isChurchUse
-                ? 'Church activity reserved. No payment required.'
-                : 'Booking saved. Status: Awaiting Deposit.',
-          ),
+          content: Text(isChurchUse
+              ? 'Church use reservation saved. No payment required.'
+              : 'Rental booking saved. Status: Awaiting Deposit.'),
         ),
       );
       widget.onSaved();
-    } catch (error) {
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to save reservation: $error')),
+        SnackBar(content: Text('Unable to save reservation: $e')),
       );
     } finally {
       if (mounted) setState(() => saving = false);
@@ -234,9 +234,11 @@ class _NewBookingPageState extends State<NewBookingPage> {
     final s = settings;
     if (s == null) return const Center(child: CircularProgressIndicator());
 
-    final activeSpaces = s.spaces.where((space) => space.active).toList();
-    final activeServices = s.services.where((service) => service.active).toList();
-    final deposit = isChurchUse ? 0 : total * s.rules.bookingDepositPercent / 100;
+    final spaces = s.spaces.where((e) => e.active).toList();
+    final services = s.services.where((e) => e.active).toList();
+    final double deposit = isChurchUse
+        ? 0.0
+        : total * s.rules.bookingDepositPercent / 100.0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(30, 28, 30, 26),
@@ -247,12 +249,11 @@ class _NewBookingPageState extends State<NewBookingPage> {
           children: [
             const PageHeader(
               title: 'New Reservation',
-              subtitle:
-                  'Reserve Wesley Hall for a paid rental or a church activity.',
+              subtitle: 'Choose rental or church use, then reserve Wesley Hall.',
             ),
-            const SizedBox(height: 18),
-            _reservationTypeSelector(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            _reservationSelector(),
+            const SizedBox(height: 14),
             Expanded(
               child: SingleChildScrollView(
                 child: Row(
@@ -262,150 +263,116 @@ class _NewBookingPageState extends State<NewBookingPage> {
                       flex: 3,
                       child: Column(
                         children: [
-                          section(
+                          _section(
                             isChurchUse
                                 ? 'Church Activity Information'
                                 : 'Client Information',
                             [
                               if (isChurchUse) ...[
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: field(
-                                        churchGroup,
+                                Row(children: [
+                                  Expanded(
+                                    child: _field(churchGroup,
                                         'Church Group / Ministry',
-                                        required: true,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: field(
-                                        client,
-                                        'Person Responsible',
-                                        required: true,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                        required: true),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _field(client, 'Person Responsible',
+                                        required: true),
+                                  ),
+                                ]),
                                 const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(child: field(phone, 'Telephone')),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: field(email, 'Email')),
-                                  ],
-                                ),
+                                Row(children: [
+                                  Expanded(child: _field(phone, 'Telephone')),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: _field(email, 'Email')),
+                                ]),
                               ] else ...[
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: field(
-                                        client,
-                                        'Client Name',
-                                        required: true,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: field(phone, 'Telephone')),
-                                  ],
-                                ),
+                                Row(children: [
+                                  Expanded(
+                                    child: _field(client, 'Client Name',
+                                        required: true),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: _field(phone, 'Telephone')),
+                                ]),
                                 const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(child: field(email, 'Email')),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: field(address, 'Address')),
-                                  ],
-                                ),
+                                Row(children: [
+                                  Expanded(child: _field(email, 'Email')),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: _field(address, 'Address')),
+                                ]),
                               ],
                             ],
                           ),
                           const SizedBox(height: 14),
-                          section('Activity & Hall', [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate: eventDate,
-                                        firstDate: DateTime.now(),
-                                        lastDate: DateTime.now()
-                                            .add(const Duration(days: 1825)),
-                                      );
-                                      if (picked != null) {
-                                        setState(() => eventDate = picked);
-                                        checkAvailability();
-                                      }
-                                    },
-                                    icon: const Icon(Icons.calendar_today),
-                                    label: Text(date(eventDate)),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: hallId,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Hall Space',
-                                    ),
-                                    items: activeSpaces
-                                        .map(
-                                          (hall) => DropdownMenuItem(
-                                            value: hall.id,
-                                            child: Text(hall.name),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      final hall = s.spaces.firstWhere(
-                                        (space) => space.id == value,
-                                      );
-                                      setState(() {
-                                        hallId = value;
-                                        hallCharge.text = isChurchUse
-                                            ? '0.00'
-                                            : hall.baseRate.toStringAsFixed(2);
-                                      });
+                          _section('Activity & Hall', [
+                            Row(children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.calendar_today),
+                                  label: Text(_date(eventDate)),
+                                  onPressed: () async {
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: eventDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now()
+                                          .add(const Duration(days: 1825)),
+                                    );
+                                    if (picked != null) {
+                                      setState(() => eventDate = picked);
                                       checkAvailability();
-                                    },
-                                  ),
+                                    }
+                                  },
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: hallId,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Hall Space'),
+                                  items: spaces
+                                      .map((e) => DropdownMenuItem(
+                                            value: e.id,
+                                            child: Text(e.name),
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    final hall = s.spaces
+                                        .firstWhere((e) => e.id == value);
+                                    setState(() {
+                                      hallId = value;
+                                      hallCharge.text = isChurchUse
+                                          ? '0.00'
+                                          : hall.baseRate.toStringAsFixed(2);
+                                    });
+                                    checkAvailability();
+                                  },
+                                ),
+                              ),
+                            ]),
                             const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: timeButton(
-                                    'Start',
-                                    start,
-                                    (value) => start = value,
-                                  ),
+                            Row(children: [
+                              Expanded(child: _timeButton('Start', start,
+                                  (value) => start = value)),
+                              const SizedBox(width: 12),
+                              Expanded(child: _timeButton('End', end,
+                                  (value) => end = value)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _field(
+                                  guests,
+                                  isChurchUse
+                                      ? 'Expected Attendance'
+                                      : 'No. of Guests',
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: timeButton(
-                                    'End',
-                                    end,
-                                    (value) => end = value,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: field(
-                                    guests,
-                                    isChurchUse
-                                        ? 'Expected Attendance'
-                                        : 'No. of Guests',
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ]),
                             const SizedBox(height: 12),
-                            field(
+                            _field(
                               details,
                               isChurchUse
                                   ? 'Church Activity / Program Name'
@@ -423,70 +390,53 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                     : const Color(0xFFE8F7EF),
                                 borderRadius: BorderRadius.circular(11),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    available == false
-                                        ? Icons.warning_amber_rounded
-                                        : Icons.check_circle_outline,
-                                  ),
-                                  const SizedBox(width: 9),
-                                  Expanded(
-                                    child: Text(
-                                      available == false
-                                          ? 'Conflict: the hall is already reserved during this access/event/vacate period.'
-                                          : 'Hall blocked from ${dateTime(accessStart)} through ${dateTime(vacateEnd)}.',
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                available == false
+                                    ? 'Conflict: the hall is already reserved during this period.'
+                                    : 'Hall blocked from ${_dateTime(accessStart)} through ${_dateTime(vacateEnd)}.',
                               ),
                             ),
                           ]),
                           if (!isChurchUse) ...[
                             const SizedBox(height: 14),
-                            section(
+                            _section(
                               'Extra Facilities / Services',
-                              activeServices.map((service) {
+                              services.map((service) {
                                 final checked = selected.containsKey(service.id);
-                                return Row(
-                                  children: [
-                                    Checkbox(
-                                      value: checked,
-                                      onChanged: (value) => setState(() {
-                                        if (value == true) {
-                                          selected[service.id] = 1;
-                                        } else {
-                                          selected.remove(service.id);
-                                        }
-                                      }),
+                                return Row(children: [
+                                  Checkbox(
+                                    value: checked,
+                                    onChanged: (value) => setState(() {
+                                      if (value == true) {
+                                        selected[service.id] = 1.0;
+                                      } else {
+                                        selected.remove(service.id);
+                                      }
+                                    }),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      '${service.name} - \$${service.price.toStringAsFixed(2)}${service.pricingType == 'hourly' ? '/hr' : ''}',
                                     ),
-                                    Expanded(
-                                      child: Text(
-                                        '${service.name} - \$${service.price.toStringAsFixed(2)}${service.pricingType == 'hourly' ? '/hr' : ''}',
+                                  ),
+                                  if (checked && service.pricingType == 'hourly')
+                                    SizedBox(
+                                      width: 90,
+                                      child: TextFormField(
+                                        initialValue: '1',
+                                        decoration: const InputDecoration(
+                                            labelText: 'Hours'),
+                                        onChanged: (value) => setState(() =>
+                                            selected[service.id] =
+                                                double.tryParse(value) ?? 0.0),
                                       ),
                                     ),
-                                    if (checked &&
-                                        service.pricingType == 'hourly')
-                                      SizedBox(
-                                        width: 90,
-                                        child: TextFormField(
-                                          initialValue: '1',
-                                          decoration: const InputDecoration(
-                                            labelText: 'Hours',
-                                          ),
-                                          onChanged: (value) => setState(
-                                            () => selected[service.id] =
-                                                double.tryParse(value) ?? 0,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                );
+                                ]);
                               }).toList(),
                             ),
                           ],
                           const SizedBox(height: 14),
-                          section('Notes', [
+                          _section('Notes', [
                             TextField(
                               controller: notes,
                               maxLines: 3,
@@ -509,106 +459,63 @@ class _NewBookingPageState extends State<NewBookingPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: isChurchUse
-                                        ? const Color(0xFFE6F0FF)
-                                        : const Color(0xFFDDF6E8),
-                                    child: Icon(
-                                      isChurchUse
-                                          ? Icons.church_outlined
-                                          : Icons.receipt_long_outlined,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      isChurchUse
-                                          ? 'Church Use Summary'
-                                          : 'Booking Summary',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                isChurchUse
+                                    ? 'Church Use Summary'
+                                    : 'Booking Summary',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800),
                               ),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 16),
                               if (isChurchUse) ...[
                                 Container(
-                                  padding: const EdgeInsets.all(15),
+                                  padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEAF3FF),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'NO PAYMENT REQUIRED',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF235A92),
-                                        ),
-                                      ),
-                                      SizedBox(height: 5),
-                                      Text(
-                                        'Internal church use reserves the hall and prevents double-booking, but rental and deposit charges are not applied.',
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                    ],
+                                  child: const Text(
+                                    'NO PAYMENT REQUIRED\nThe hall is reserved and protected from double-booking.',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                moneyLine('Hall Charge', 0),
-                                moneyLine('Services', 0),
-                                moneyLine('Deposit', 0),
-                                const Divider(),
-                                moneyLine('Total Due', 0, strong: true),
+                                _moneyLine('Hall Charge', 0.0),
+                                _moneyLine('Deposit', 0.0),
+                                _moneyLine('Total Due', 0.0, strong: true),
                               ] else ...[
                                 TextField(
                                   controller: hallCharge,
                                   decoration: const InputDecoration(
-                                    labelText: 'Hall Rental Charge (\$)',
-                                  ),
+                                      labelText: 'Hall Rental Charge (\$)'),
                                   onChanged: (_) => setState(() {}),
                                 ),
                                 const SizedBox(height: 16),
-                                moneyLine('Services', extrasTotal),
-                                moneyLine('Extra Time', extraTime),
+                                _moneyLine('Services', extrasTotal),
+                                _moneyLine('Extra Time', extraTime),
                                 const Divider(),
-                                moneyLine('Total', total, strong: true),
-                                moneyLine(
+                                _moneyLine('Total', total, strong: true),
+                                _moneyLine(
                                   'Required ${s.rules.bookingDepositPercent.toStringAsFixed(0)}% Deposit',
                                   deposit,
                                 ),
-                                moneyLine(
-                                  'Balance After Deposit',
-                                  total - deposit,
-                                ),
+                                _moneyLine(
+                                    'Balance After Deposit', total - deposit),
                                 const Divider(),
-                                moneyLine(
-                                  'Refundable Damage Deposit',
-                                  s.rules.damageDepositAmount,
-                                ),
+                                _moneyLine('Refundable Damage Deposit',
+                                    s.rules.damageDepositAmount),
                               ],
                               const SizedBox(height: 20),
                               FilledButton.icon(
                                 onPressed: saving ? null : save,
-                                icon: Icon(
-                                  isChurchUse
-                                      ? Icons.event_available_outlined
-                                      : Icons.save_outlined,
-                                ),
-                                label: Text(
-                                  isChurchUse
-                                      ? 'Reserve for Church Use'
-                                      : 'Save Rental Booking',
-                                ),
+                                icon: Icon(isChurchUse
+                                    ? Icons.event_available_outlined
+                                    : Icons.save_outlined),
+                                label: Text(isChurchUse
+                                    ? 'Reserve for Church Use'
+                                    : 'Save Rental Booking'),
                               ),
                             ],
                           ),
@@ -625,63 +532,55 @@ class _NewBookingPageState extends State<NewBookingPage> {
     );
   }
 
-  Widget _reservationTypeSelector() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Reservation Type',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+  Widget _reservationSelector() => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Reservation Type',
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w800)),
+                    SizedBox(height: 4),
+                    Text('Select one before entering the booking details.'),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'external_rental',
+                    icon: Icon(Icons.payments_outlined),
+                    label: Text('External Rental'),
                   ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Choose whether this is an external paid rental or an internal church activity.',
-                    style: TextStyle(fontSize: 12),
+                  ButtonSegment(
+                    value: 'church_use',
+                    icon: Icon(Icons.church_outlined),
+                    label: Text('Church Use - No Payment'),
                   ),
                 ],
+                selected: {reservationType},
+                onSelectionChanged: (value) =>
+                    setReservationType(value.first),
               ),
-            ),
-            const SizedBox(width: 16),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'external_rental',
-                  icon: Icon(Icons.payments_outlined),
-                  label: Text('External Rental'),
-                ),
-                ButtonSegment(
-                  value: 'church_use',
-                  icon: Icon(Icons.church_outlined),
-                  label: Text('Church Use - No Payment'),
-                ),
-              ],
-              selected: {reservationType},
-              onSelectionChanged: (values) =>
-                  changeReservationType(values.first),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
 
-  Widget section(String title, List<Widget> children) => Card(
+  Widget _section(String title, List<Widget> children) => Card(
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                title,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-              ),
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 16)),
               const SizedBox(height: 12),
               ...children,
             ],
@@ -689,11 +588,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
         ),
       );
 
-  Widget field(
-    TextEditingController controller,
-    String label, {
-    bool required = false,
-  }) =>
+  Widget _field(TextEditingController controller, String label,
+          {bool required = false}) =>
       TextFormField(
         controller: controller,
         decoration: InputDecoration(labelText: label),
@@ -704,17 +600,12 @@ class _NewBookingPageState extends State<NewBookingPage> {
             : null,
       );
 
-  Widget timeButton(
-    String label,
-    TimeOfDay value,
-    void Function(TimeOfDay) update,
-  ) =>
+  Widget _timeButton(
+          String label, TimeOfDay value, void Function(TimeOfDay) update) =>
       OutlinedButton(
         onPressed: () async {
-          final picked = await showTimePicker(
-            context: context,
-            initialTime: value,
-          );
+          final picked =
+              await showTimePicker(context: context, initialTime: value);
           if (picked != null) {
             setState(() => update(picked));
             checkAvailability();
@@ -723,31 +614,26 @@ class _NewBookingPageState extends State<NewBookingPage> {
         child: Text('$label: ${value.format(context)}'),
       );
 
-  Widget moneyLine(String label, double value, {bool strong = false}) => Padding(
+  Widget _moneyLine(String label, double value, {bool strong = false}) =>
+      Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(
           children: [
             Expanded(
-              child: Text(
-                label,
+              child: Text(label,
+                  style: TextStyle(
+                      fontWeight: strong ? FontWeight.w700 : null)),
+            ),
+            Text('\$${value.toStringAsFixed(2)}',
                 style: TextStyle(
-                  fontWeight: strong ? FontWeight.w700 : null,
-                ),
-              ),
-            ),
-            Text(
-              '\$${value.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontWeight: strong ? FontWeight.w800 : null,
-              ),
-            ),
+                    fontWeight: strong ? FontWeight.w800 : null)),
           ],
         ),
       );
 
-  String date(DateTime value) =>
+  String _date(DateTime value) =>
       '${value.month}/${value.day}/${value.year}';
 
-  String dateTime(DateTime value) =>
-      '${date(value)} ${TimeOfDay.fromDateTime(value).format(context)}';
+  String _dateTime(DateTime value) =>
+      '${_date(value)} ${TimeOfDay.fromDateTime(value).format(context)}';
 }
