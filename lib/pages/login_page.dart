@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,6 +15,24 @@ class _LoginPageState extends State<LoginPage> {
   final _password = TextEditingController();
   bool _busy = false;
   String? _error;
+  Uint8List? _logoBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLogo();
+  }
+
+  Future<void> _loadLogo() async {
+    try {
+      final bytes = await Supabase.instance.client.storage
+          .from('wesley-hall-private')
+          .download('organization-logos/church-logo.png');
+      if (mounted) setState(() => _logoBytes = bytes);
+    } catch (_) {
+      // Fall back to the church icon if no logo has been uploaded yet.
+    }
+  }
 
   @override
   void dispose() {
@@ -52,7 +72,8 @@ class _LoginPageState extends State<LoginPage> {
 
       if (staff == null || staff['active'] != true) {
         await Supabase.instance.client.auth.signOut();
-        throw const AuthException('This account is not authorized for Wesley Hall.');
+        throw const AuthException(
+            'This account is not authorized for Wesley Hall.');
       }
     } on AuthException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -76,19 +97,39 @@ class _LoginPageState extends State<LoginPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.church_outlined,
-                      size: 48, color: Theme.of(context).colorScheme.primary),
+                  Center(
+                    child: _logoBytes != null
+                        ? ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: 120,
+                              maxHeight: 120,
+                            ),
+                            child: Image.memory(
+                              _logoBytes!,
+                              fit: BoxFit.contain,
+                            ),
+                          )
+                        : Icon(
+                            Icons.church_outlined,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                  ),
                   const SizedBox(height: 14),
-                  Text('WESLEY HALL',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(
+                    'WESLEY HALL',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 4),
-                  Text('GMCT Hall Booking & Planning',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium),
+                  Text(
+                    'GMCT Hall Booking & Planning',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                   const SizedBox(height: 28),
                   TextField(
                     controller: _username,
@@ -111,9 +152,12 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 10),
-                    Text(_error!,
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.error)),
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 18),
                   FilledButton.icon(
@@ -122,7 +166,8 @@ class _LoginPageState extends State<LoginPage> {
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.login),
                     label: const Text('Sign In'),
                   ),
