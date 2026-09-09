@@ -34,6 +34,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool autoSignature = true;
   Uint8List? signature;
   String? signaturePath;
+  Uint8List? organizationLogo;
+  String? organizationLogoPath;
 
   @override
   void initState() {
@@ -45,6 +47,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final b = await widget.repository.loadSettings();
     final sig = await widget.repository
         .loadManagerSignature(b.organization.managerSignaturePath);
+    final logo = await widget.repository
+        .loadOrganizationLogo(b.organization.organizationLogoPath);
     if (!mounted) return;
     setState(() {
       bundle = b;
@@ -58,6 +62,8 @@ class _SettingsPageState extends State<SettingsPage> {
       autoSignature = b.organization.autoIncludeManagerSignature;
       signaturePath = b.organization.managerSignaturePath;
       signature = sig;
+      organizationLogoPath = b.organization.organizationLogoPath;
+      organizationLogo = logo;
       hours.text = '${b.rules.standardRentalHours}';
       setup.text = '${b.rules.setupMinutesBefore}';
       cleanup.text = '${b.rules.cleanupMinutesAfter}';
@@ -67,19 +73,41 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Future<void> _pickSignature() async {
-    final file = await FilePicker.pickFile(
+  Future<({Uint8List bytes, String extension})?> _pickImage() async {
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['png', 'jpg', 'jpeg'],
+      withData: true,
     );
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
+    if (result == null || result.files.isEmpty) return null;
+    final file = result.files.single;
+    final bytes = file.bytes;
+    if (bytes == null) return null;
     var ext = (file.extension ?? 'png').toLowerCase();
     if (ext == 'jpeg') ext = 'jpg';
-    final path = await widget.repository.uploadManagerSignature(bytes, ext);
+    return (bytes: bytes, extension: ext);
+  }
+
+  Future<void> _pickLogo() async {
+    final selected = await _pickImage();
+    if (selected == null) return;
+    final path = await widget.repository
+        .uploadOrganizationLogo(selected.bytes, selected.extension);
     if (!mounted) return;
     setState(() {
-      signature = bytes;
+      organizationLogo = selected.bytes;
+      organizationLogoPath = path;
+    });
+  }
+
+  Future<void> _pickSignature() async {
+    final selected = await _pickImage();
+    if (selected == null) return;
+    final path = await widget.repository
+        .uploadManagerSignature(selected.bytes, selected.extension);
+    if (!mounted) return;
+    setState(() {
+      signature = selected.bytes;
       signaturePath = path;
     });
   }
@@ -95,6 +123,7 @@ class _SettingsPageState extends State<SettingsPage> {
         email: email.text.trim(),
         managerName: manager.text.trim(),
         managerTitle: title.text.trim(),
+        organizationLogoPath: organizationLogoPath,
         managerSignaturePath: signaturePath,
         autoIncludeManagerSignature: autoSignature,
       ),
@@ -137,7 +166,7 @@ class _SettingsPageState extends State<SettingsPage> {
           PageHeader(
             title: 'Settings',
             subtitle:
-                'Hall details, manager signature, rental times, rates, and contract conditions.',
+                'Hall details, church logo, manager signature, rental times, rates, and contract conditions.',
             trailing: FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.save_outlined),
@@ -149,21 +178,65 @@ class _SettingsPageState extends State<SettingsPage> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  _card('Organization & Authorized Manager', [
-                    Row(children: [
-                      Expanded(child: _field(hall, 'Hall Name')),
-                      const SizedBox(width: 12),
-                      Expanded(child: _field(church, 'Church / Organization')),
-                    ]),
-                    const SizedBox(height: 12),
-                    _field(address, 'Address'),
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Expanded(child: _field(phone, 'Telephone')),
-                      const SizedBox(width: 12),
-                      Expanded(child: _field(email, 'Email')),
-                    ]),
-                    const SizedBox(height: 12),
+                  _card('Organization Branding', [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(children: [
+                            Row(children: [
+                              Expanded(child: _field(hall, 'Hall Name')),
+                              const SizedBox(width: 12),
+                              Expanded(child: _field(church, 'Church / Organization')),
+                            ]),
+                            const SizedBox(height: 12),
+                            _field(address, 'Address'),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              Expanded(child: _field(phone, 'Telephone')),
+                              const SizedBox(width: 12),
+                              Expanded(child: _field(email, 'Email')),
+                            ]),
+                          ]),
+                        ),
+                        const SizedBox(width: 18),
+                        SizedBox(
+                          width: 250,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text('Church Logo',
+                                  style: Theme.of(context).textTheme.titleSmall),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 120,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: Theme.of(context).dividerColor),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: organizationLogo == null
+                                    ? const Text('No logo uploaded')
+                                    : Image.memory(organizationLogo!,
+                                        fit: BoxFit.contain),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: _pickLogo,
+                                icon: const Icon(Icons.image_outlined),
+                                label: Text(organizationLogo == null
+                                    ? 'Upload Church Logo'
+                                    : 'Replace Church Logo'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ]),
+                  const SizedBox(height: 14),
+                  _card('Authorized Manager', [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
