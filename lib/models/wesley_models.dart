@@ -9,6 +9,8 @@ class OrganizationSettings {
     required this.email,
     required this.managerName,
     required this.managerTitle,
+    this.organizationLogoPath,
+    this.organizationLogoBytes,
     this.managerSignaturePath,
     this.managerSignatureBytes,
     this.autoIncludeManagerSignature = true,
@@ -21,6 +23,8 @@ class OrganizationSettings {
   final String email;
   final String managerName;
   final String managerTitle;
+  final String? organizationLogoPath;
+  final Uint8List? organizationLogoBytes;
   final String? managerSignaturePath;
   final Uint8List? managerSignatureBytes;
   final bool autoIncludeManagerSignature;
@@ -33,6 +37,8 @@ class OrganizationSettings {
     String? email,
     String? managerName,
     String? managerTitle,
+    String? organizationLogoPath,
+    Uint8List? organizationLogoBytes,
     String? managerSignaturePath,
     Uint8List? managerSignatureBytes,
     bool? autoIncludeManagerSignature,
@@ -45,6 +51,9 @@ class OrganizationSettings {
       email: email ?? this.email,
       managerName: managerName ?? this.managerName,
       managerTitle: managerTitle ?? this.managerTitle,
+      organizationLogoPath: organizationLogoPath ?? this.organizationLogoPath,
+      organizationLogoBytes:
+          organizationLogoBytes ?? this.organizationLogoBytes,
       managerSignaturePath: managerSignaturePath ?? this.managerSignaturePath,
       managerSignatureBytes:
           managerSignatureBytes ?? this.managerSignatureBytes,
