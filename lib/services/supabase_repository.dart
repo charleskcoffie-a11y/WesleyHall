@@ -30,8 +30,8 @@ class SupabaseWesleyRepository implements WesleyRepository {
         .select()
         .order('display_order');
 
-    final org = orgRows.first as Map<String, dynamic>;
-    final rules = ruleRows.first as Map<String, dynamic>;
+    final org = orgRows.first;
+    final rules = ruleRows.first;
 
     return SettingsBundle(
       organization: OrganizationSettings(
@@ -67,35 +67,26 @@ class SupabaseWesleyRepository implements WesleyRepository {
         chargeSetupTime: rules['charge_setup_time'] as bool? ?? false,
         chargeCleanupTime: rules['charge_cleanup_time'] as bool? ?? false,
       ),
-      spaces: spacesRows.map<HallSpace>((row) {
-        final m = row as Map<String, dynamic>;
-        return HallSpace(
-          id: m['id'].toString(),
-          name: m['name'] as String,
-          baseRate: (m['base_rate'] as num?)?.toDouble() ?? 0,
-          capacity: (m['capacity'] as num?)?.toInt(),
-          active: m['active'] as bool? ?? true,
-        );
-      }).toList(),
-      services: servicesRows.map<ServiceItem>((row) {
-        final m = row as Map<String, dynamic>;
-        return ServiceItem(
-          id: m['id'].toString(),
-          name: m['name'] as String,
-          pricingType: m['pricing_type'] as String? ?? 'flat',
-          price: (m['price'] as num?)?.toDouble() ?? 0,
-          active: m['active'] as bool? ?? true,
-        );
-      }).toList(),
-      terms: termsRows.map<RentalTerm>((row) {
-        final m = row as Map<String, dynamic>;
-        return RentalTerm(
-          id: m['id'].toString(),
-          text: m['term_text'] as String? ?? '',
-          order: (m['display_order'] as num?)?.toInt() ?? 0,
-          active: m['active'] as bool? ?? true,
-        );
-      }).toList(),
+      spaces: spacesRows.map<HallSpace>((m) => HallSpace(
+            id: m['id'].toString(),
+            name: m['name'] as String,
+            baseRate: (m['base_rate'] as num?)?.toDouble() ?? 0,
+            capacity: (m['capacity'] as num?)?.toInt(),
+            active: m['active'] as bool? ?? true,
+          )).toList(),
+      services: servicesRows.map<ServiceItem>((m) => ServiceItem(
+            id: m['id'].toString(),
+            name: m['name'] as String,
+            pricingType: m['pricing_type'] as String? ?? 'flat',
+            price: (m['price'] as num?)?.toDouble() ?? 0,
+            active: m['active'] as bool? ?? true,
+          )).toList(),
+      terms: termsRows.map<RentalTerm>((m) => RentalTerm(
+            id: m['id'].toString(),
+            text: m['term_text'] as String? ?? '',
+            order: (m['display_order'] as num?)?.toInt() ?? 0,
+            active: m['active'] as bool? ?? true,
+          )).toList(),
     );
   }
 
@@ -174,19 +165,16 @@ class SupabaseWesleyRepository implements WesleyRepository {
   }
 
   @override
-  Future<void> deleteTerm(String id) async {
-    await client.from('wesley_rental_terms').delete().eq('id', id);
-  }
+  Future<void> deleteTerm(String id) async =>
+      client.from('wesley_rental_terms').delete().eq('id', id);
 
   @override
-  Future<void> deleteSpace(String id) async {
-    await client.from('wesley_hall_spaces').delete().eq('id', id);
-  }
+  Future<void> deleteSpace(String id) async =>
+      client.from('wesley_hall_spaces').delete().eq('id', id);
 
   @override
-  Future<void> deleteService(String id) async {
-    await client.from('wesley_services').delete().eq('id', id);
-  }
+  Future<void> deleteService(String id) async =>
+      client.from('wesley_services').delete().eq('id', id);
 
   Future<String?> _uploadImage(
     Uint8List bytes,
@@ -208,14 +196,8 @@ class SupabaseWesleyRepository implements WesleyRepository {
 
   @override
   Future<String?> uploadOrganizationLogo(
-      Uint8List bytes, String extension) async {
-    return _uploadImage(
-      bytes,
-      extension,
-      'organization-logos',
-      'church-logo',
-    );
-  }
+          Uint8List bytes, String extension) =>
+      _uploadImage(bytes, extension, 'organization-logos', 'church-logo');
 
   @override
   Future<Uint8List?> loadOrganizationLogo(String? path) async {
@@ -225,14 +207,8 @@ class SupabaseWesleyRepository implements WesleyRepository {
 
   @override
   Future<String?> uploadManagerSignature(
-      Uint8List bytes, String extension) async {
-    return _uploadImage(
-      bytes,
-      extension,
-      'manager-signatures',
-      'manager-signature',
-    );
-  }
+          Uint8List bytes, String extension) =>
+      _uploadImage(bytes, extension, 'manager-signatures', 'manager-signature');
 
   @override
   Future<Uint8List?> loadManagerSignature(String? path) async {
@@ -246,10 +222,8 @@ class SupabaseWesleyRepository implements WesleyRepository {
     await client.storage.from('wesley-hall-private').uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(
-            upsert: true,
-            contentType: 'image/png',
-          ),
+          fileOptions:
+              const FileOptions(upsert: true, contentType: 'image/png'),
         );
     await client.from('wesley_bookings').update({
       'client_signature_path': path,
@@ -275,8 +249,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
         )
         .order('event_start');
 
-    return rows.map<Booking>((raw) {
-      final row = raw as Map<String, dynamic>;
+    return rows.map<Booking>((row) {
       final hall = row['hall'] as Map<String, dynamic>?;
       final extrasRaw = row['extras'] as List<dynamic>? ?? [];
       final paymentsRaw = row['payments'] as List<dynamic>? ?? [];
@@ -300,6 +273,9 @@ class SupabaseWesleyRepository implements WesleyRepository {
         extraTimeCharge:
             (row['extra_time_charge'] as num?)?.toDouble() ?? 0,
         status: row['status'] as String? ?? 'draft',
+        reservationType:
+            row['reservation_type'] as String? ?? 'external_rental',
+        churchGroup: row['church_group'] as String? ?? '',
         bookingDepositPercent:
             (row['booking_deposit_percent'] as num?)?.toDouble() ?? 50,
         damageDepositRequired:
@@ -309,8 +285,8 @@ class SupabaseWesleyRepository implements WesleyRepository {
         clientSignedAt: row['client_signed_at'] == null
             ? null
             : DateTime.tryParse(row['client_signed_at'].toString()),
-        extras: extrasRaw.map<BookingExtra>((e) {
-          final item = e as Map<String, dynamic>;
+        extras: extrasRaw.map<BookingExtra>((raw) {
+          final item = raw as Map<String, dynamic>;
           final service = item['service'] as Map<String, dynamic>?;
           return BookingExtra(
             serviceId: item['service_id'].toString(),
@@ -319,8 +295,8 @@ class SupabaseWesleyRepository implements WesleyRepository {
             unitPrice: (item['unit_price'] as num?)?.toDouble() ?? 0,
           );
         }).toList(),
-        payments: paymentsRaw.map<PaymentRecord>((e) {
-          final item = e as Map<String, dynamic>;
+        payments: paymentsRaw.map<PaymentRecord>((raw) {
+          final item = raw as Map<String, dynamic>;
           return PaymentRecord(
             id: item['id'].toString(),
             paymentType: item['payment_type'] as String? ?? 'other',
@@ -355,13 +331,15 @@ class SupabaseWesleyRepository implements WesleyRepository {
       'hall_charge': booking.hallCharge,
       'extra_time_charge': booking.extraTimeCharge,
       'status': booking.status,
+      'reservation_type': booking.reservationType,
+      'church_group': booking.churchGroup,
       'booking_deposit_percent': booking.bookingDepositPercent,
       'damage_deposit_required': booking.damageDepositRequired,
       'notes': booking.notes,
     }).select('id').single();
 
     final bookingId = inserted['id'].toString();
-    if (booking.extras.isNotEmpty) {
+    if (!booking.isChurchUse && booking.extras.isNotEmpty) {
       await client.from('wesley_booking_services').insert(
             booking.extras
                 .map((e) => {
