@@ -196,6 +196,8 @@ class Booking {
     this.damageDepositRequired = 500,
     this.payments = const [],
     this.notes = '',
+    this.clientSignaturePath,
+    this.clientSignedAt,
   });
 
   final String id;
@@ -221,6 +223,8 @@ class Booking {
   final double damageDepositRequired;
   final List<PaymentRecord> payments;
   final String notes;
+  final String? clientSignaturePath;
+  final DateTime? clientSignedAt;
 
   double get extrasTotal =>
       extras.fold<double>(0, (total, item) => total + item.total);
@@ -257,6 +261,8 @@ class Booking {
   Booking copyWith({
     String? status,
     List<PaymentRecord>? payments,
+    String? clientSignaturePath,
+    DateTime? clientSignedAt,
   }) {
     return Booking(
       id: id,
@@ -282,6 +288,8 @@ class Booking {
       damageDepositRequired: damageDepositRequired,
       payments: payments ?? this.payments,
       notes: notes,
+      clientSignaturePath: clientSignaturePath ?? this.clientSignaturePath,
+      clientSignedAt: clientSignedAt ?? this.clientSignedAt,
     );
   }
 }
