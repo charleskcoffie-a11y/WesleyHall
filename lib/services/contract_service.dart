@@ -10,6 +10,7 @@ class ContractService {
     required Booking booking,
     required SettingsBundle settings,
     Uint8List? managerSignature,
+    Uint8List? organizationLogo,
   }) async {
     final pdf = pw.Document();
     final org = settings.organization;
@@ -17,6 +18,9 @@ class ContractService {
     final signatureImage = managerSignature == null
         ? null
         : pw.MemoryImage(managerSignature);
+    final logoImage = organizationLogo == null
+        ? null
+        : pw.MemoryImage(organizationLogo);
 
     final requiredDeposit = booking.requiredBookingDeposit;
     final rentalBalance = booking.remainingRentalBalance;
@@ -27,12 +31,38 @@ class ContractService {
         margin: const pw.EdgeInsets.all(36),
         header: (context) => pw.Column(
           children: [
-            pw.Text(org.hallName.toUpperCase(),
-                style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 3),
-            pw.Text(org.churchName, style: const pw.TextStyle(fontSize: 10)),
-            pw.Text(org.address, style: const pw.TextStyle(fontSize: 9)),
-            pw.Text('${org.phone}  |  ${org.email}', style: const pw.TextStyle(fontSize: 9)),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logoImage != null)
+                  pw.Container(
+                    width: 58,
+                    height: 58,
+                    margin: const pw.EdgeInsets.only(right: 12),
+                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                  ),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: logoImage == null
+                        ? pw.CrossAxisAlignment.center
+                        : pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(org.hallName.toUpperCase(),
+                          style: pw.TextStyle(
+                              fontSize: 20,
+                              fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 3),
+                      pw.Text(org.churchName,
+                          style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text(org.address,
+                          style: const pw.TextStyle(fontSize: 9)),
+                      pw.Text('${org.phone}  |  ${org.email}',
+                          style: const pw.TextStyle(fontSize: 9)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             pw.SizedBox(height: 8),
             pw.Divider(),
           ],
