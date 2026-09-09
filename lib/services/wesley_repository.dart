@@ -11,6 +11,9 @@ abstract class WesleyRepository {
   Future<void> saveTerms(List<RentalTerm> terms);
   Future<void> saveSpaces(List<HallSpace> spaces);
   Future<void> saveServices(List<ServiceItem> services);
+
+  Future<String?> uploadOrganizationLogo(Uint8List bytes, String extension);
+  Future<Uint8List?> loadOrganizationLogo(String? path);
   Future<String?> uploadManagerSignature(Uint8List bytes, String extension);
   Future<Uint8List?> loadManagerSignature(String? path);
 
