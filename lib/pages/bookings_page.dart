@@ -291,6 +291,160 @@ class _BookingsPageState extends State<BookingsPage> {
     }
   }
 
+  Future<void> _manageSeries(Booking booking) async {
+    if (!booking.isRecurring || !_canBook) return;
+    final currentIndex = booking.seriesIndex ?? 1;
+    final total = booking.seriesCount ?? 0;
+    final rule = booking.seriesRule == 'monthly' ? 'Monthly' : 'Weekly';
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Manage Recurring Series'),
+        content: SizedBox(
+          width: 560,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                booking.eventDetails,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              const SizedBox(height: 5),
+              Text('$rule series • Occurrence $currentIndex${total > 0 ? ' of $total' : ''}'),
+              const SizedBox(height: 12),
+              const Text(
+                'Edit changes only this occurrence. Use the options below to manage the linked series. Updating future details copies the group, responsible person, contact details, activity name, attendance and notes; dates, times and hall remain unchanged for safety.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, 'future_details'),
+            icon: const Icon(Icons.copy_all_outlined),
+            label: const Text('Update Future Details'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, 'cancel_this'),
+            icon: const Icon(Icons.event_busy_outlined),
+            label: const Text('Cancel This Event'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, 'cancel_future'),
+            icon: const Icon(Icons.next_plan_outlined),
+            label: const Text('Cancel This & Future'),
+          ),
+          FilledButton.tonalIcon(
+            onPressed: () => Navigator.pop(dialogContext, 'cancel_series'),
+            icon: const Icon(Icons.cancel_schedule_send_outlined),
+            label: const Text('Cancel Entire Series'),
+          ),
+        ],
+      ),
+    );
+    if (action == null) return;
+
+    final key = booking.seriesKey!;
+    try {
+      final table = Supabase.instance.client.from('wesley_bookings');
+      if (action == 'future_details') {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Update Future Occurrences?'),
+            content: Text(
+              'Copy the current details to occurrences after #$currentIndex? Scheduling fields will not be changed.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Update Future'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        await table
+            .update({
+              'client_name': booking.clientName,
+              'phone': booking.phone,
+              'email': booking.email,
+              'event_details': booking.eventDetails,
+              'guest_count': booking.guestCount,
+              'church_group': booking.churchGroup,
+              'notes': booking.notes,
+            })
+            .eq('series_key', key)
+            .gt('series_index', currentIndex)
+            .neq('status', 'completed');
+      } else if (action == 'cancel_this') {
+        await table.update({'status': 'cancelled'}).eq('id', booking.id);
+      } else if (action == 'cancel_future') {
+        await table
+            .update({'status': 'cancelled'})
+            .eq('series_key', key)
+            .gte('series_index', currentIndex)
+            .neq('status', 'completed');
+      } else if (action == 'cancel_series') {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Cancel Entire Series?'),
+            content: const Text(
+              'All occurrences in this series that are not already completed will be cancelled. Completed history will be kept.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Keep Series'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Cancel Series'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        await table
+            .update({'status': 'cancelled'})
+            .eq('series_key', key)
+            .neq('status', 'completed');
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            action == 'future_details'
+                ? 'Future series details updated.'
+                : action == 'cancel_this'
+                    ? 'This occurrence was cancelled.'
+                    : action == 'cancel_future'
+                        ? 'This and future occurrences were cancelled.'
+                        : 'Recurring series cancelled.',
+          ),
+        ),
+      );
+      setState(() => _future = widget.repository.listBookings());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to manage recurring series: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -301,7 +455,7 @@ class _BookingsPageState extends State<BookingsPage> {
           const PageHeader(
             title: 'Bookings',
             subtitle:
-                'Manage reservations, paper applications, documents, and printable contracts.',
+                'Manage reservations, paper applications, documents, holds, recurring activities, and printable contracts.',
           ),
           const SizedBox(height: 14),
           Card(
@@ -337,7 +491,7 @@ class _BookingsPageState extends State<BookingsPage> {
                 width: 360,
                 child: TextField(
                   decoration: const InputDecoration(
-                    hintText: 'Search client, event, or reference...',
+                    hintText: 'Search client, phone, event, or reference...',
                     prefixIcon: Icon(Icons.search),
                   ),
                   onChanged: (value) =>
@@ -419,7 +573,7 @@ class _BookingsPageState extends State<BookingsPage> {
                         child: DataTable(
                           columnSpacing: 18,
                           dataRowMinHeight: 68,
-                          dataRowMaxHeight: 86,
+                          dataRowMaxHeight: 90,
                           columns: const [
                             DataColumn(label: Text('REF')),
                             DataColumn(label: Text('EVENT DATE')),
@@ -447,7 +601,7 @@ class _BookingsPageState extends State<BookingsPage> {
                               DataCell(Text(_date(b.eventDate))),
                               DataCell(
                                 SizedBox(
-                                  width: 205,
+                                  width: 215,
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     crossAxisAlignment:
@@ -466,6 +620,15 @@ class _BookingsPageState extends State<BookingsPage> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(fontSize: 11),
                                       ),
+                                      if (b.isRecurring)
+                                        Text(
+                                          '${b.seriesRule == 'monthly' ? 'Monthly' : 'Weekly'} series • ${b.seriesIndex ?? '?'} of ${b.seriesCount ?? '?'}',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF5A6E66),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -549,6 +712,15 @@ class _BookingsPageState extends State<BookingsPage> {
                                           label: const Text('Manage Hold'),
                                         ),
                                       ],
+                                      if (b.isRecurring) ...[
+                                        const SizedBox(width: 6),
+                                        FilledButton.tonalIcon(
+                                          onPressed: () => _manageSeries(b),
+                                          icon: const Icon(Icons.repeat_outlined,
+                                              size: 16),
+                                          label: const Text('Manage Series'),
+                                        ),
+                                      ],
                                       const SizedBox(width: 6),
                                       OutlinedButton.icon(
                                         onPressed: () =>
@@ -605,6 +777,5 @@ class _BookingsPageState extends State<BookingsPage> {
 
   String _dateTime(DateTime d) => '${_date(d)} ${_time(d)}';
 
-  String _shortDateTime(DateTime d) =>
-      '${d.month}/${d.day} ${_time(d)}';
+  String _shortDateTime(DateTime d) => '${d.month}/${d.day} ${_time(d)}';
 }
