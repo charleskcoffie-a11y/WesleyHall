@@ -68,17 +68,18 @@ Deno.serve(async (req) => {
       const displayName = String(body.display_name ?? '').trim();
       const role = String(body.role ?? 'viewer');
       const password = String(body.password ?? '');
-      let email = String(body.email ?? '').trim().toLowerCase();
+      const contactEmail = String(body.email ?? '').trim().toLowerCase();
 
       if (!username || !/^[a-z0-9._-]{3,40}$/.test(username)) {
         return json({ error: 'Username must be 3-40 letters, numbers, dots, dashes, or underscores.' }, 400);
       }
       if (!allowedRoles.has(role)) return json({ error: 'Invalid staff role.' }, 400);
       if (password.length < 8) return json({ error: 'Temporary password must be at least 8 characters.' }, 400);
-      if (!email) email = `${username}@wesleyhall.local`;
+
+      const authEmail = `${username}@wesleyhall.local`;
 
       const { data: created, error: createError } = await adminClient.auth.admin.createUser({
-        email,
+        email: authEmail,
         password,
         email_confirm: true,
       });
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
         user_id: created.user.id,
         display_name: displayName || username,
         username,
-        email,
+        email: contactEmail || authEmail,
         role,
         active: true,
       });
