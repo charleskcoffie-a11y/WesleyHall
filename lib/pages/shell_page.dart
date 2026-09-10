@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/wesley_repository.dart';
+import '../utils/favicon.dart';
 import 'bookings_page.dart';
 import 'dashboard_page.dart';
 import 'new_booking_page.dart';
@@ -21,10 +24,29 @@ class _ShellPageState extends State<ShellPage> {
   int _index = 0;
   int _refreshToken = 0;
   int _newBookingToken = 0;
+  Uint8List? _logoBytes;
 
   static const _sidebar = Color(0xFF0C4A39);
   static const _sidebarDark = Color(0xFF093F31);
   static const _mintText = Color(0xFFC8DDD5);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBranding();
+  }
+
+  Future<void> _loadBranding() async {
+    try {
+      final settings = await widget.repository.loadSettings();
+      final bytes = await widget.repository
+          .loadOrganizationLogo(settings.organization.organizationLogoPath);
+      if (bytes != null) setBrowserFavicon(bytes);
+      if (mounted) setState(() => _logoBytes = bytes);
+    } catch (_) {
+      // Keep the fallback icon if branding cannot be loaded.
+    }
+  }
 
   void _goToNewBooking() => setState(() {
         _newBookingToken++;
@@ -33,7 +55,10 @@ class _ShellPageState extends State<ShellPage> {
 
   void _goToPlanner() => setState(() => _index = 1);
   void _goToBookings() => setState(() => _index = 3);
-  void _refresh() => setState(() => _refreshToken++);
+  void _refresh() {
+    setState(() => _refreshToken++);
+    _loadBranding();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,15 +110,30 @@ class _ShellPageState extends State<ShellPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(24, 26, 18, 28),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 18, 26),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.church_outlined,
-                            color: Colors.white, size: 42),
-                        SizedBox(height: 10),
-                        Text(
+                        if (_logoBytes != null)
+                          Container(
+                            width: 64,
+                            height: 64,
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Image.memory(
+                              _logoBytes!,
+                              fit: BoxFit.contain,
+                            ),
+                          )
+                        else
+                          const Icon(Icons.church_outlined,
+                              color: Colors.white, size: 42),
+                        const SizedBox(height: 12),
+                        const Text(
                           'WESLEY HALL',
                           style: TextStyle(
                             color: Colors.white,
@@ -102,8 +142,8 @@ class _ShellPageState extends State<ShellPage> {
                             letterSpacing: .2,
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Text(
+                        const SizedBox(height: 4),
+                        const Text(
                           'GMCT Booking & Planning',
                           style: TextStyle(
                             color: _mintText,
