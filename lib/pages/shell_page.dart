@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/wesley_repository.dart';
 import '../utils/favicon.dart';
 import 'bookings_page.dart';
+import 'communications_page.dart';
 import 'dashboard_page.dart';
 import 'new_booking_page.dart';
 import 'planner_page.dart';
@@ -37,6 +38,11 @@ class _ShellPageState extends State<ShellPage> {
 
   bool get _canBook =>
       _role == 'admin' || _role == 'manager' || _role == 'booking_officer';
+  bool get _canCommunicate =>
+      _role == 'admin' ||
+      _role == 'manager' ||
+      _role == 'booking_officer' ||
+      _role == 'finance';
   bool get _canViewReports =>
       _role == 'admin' || _role == 'manager' || _role == 'finance';
   bool get _canManageSettings => _role == 'admin' || _role == 'manager';
@@ -163,6 +169,20 @@ class _ShellPageState extends State<ShellPage> {
         ),
       ),
     );
+
+    if (_canCommunicate) {
+      items.add(
+        _ShellDestination(
+          keyName: 'communications',
+          icon: Icons.mark_email_read_outlined,
+          label: 'Communication Centre',
+          page: CommunicationsPage(
+            key: ValueKey('communications-$_refreshToken'),
+            repository: widget.repository,
+          ),
+        ),
+      );
+    }
 
     if (_canViewReports) {
       items.add(
