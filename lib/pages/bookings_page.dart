@@ -68,12 +68,20 @@ class _BookingsPageState extends State<BookingsPage> {
 
   Future<void> _uploadPaperApplication(Booking booking) async {
     try {
-      final file = await FilePicker.pickFile(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
+        allowMultiple: false,
+        withData: true,
       );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        throw Exception('Unable to read the selected file.');
+      }
+
       var extension = (file.extension ?? 'pdf').toLowerCase();
       if (extension == 'jpeg') extension = 'jpg';
 
@@ -163,25 +171,35 @@ class _BookingsPageState extends State<BookingsPage> {
           PageHeader(
             title: 'Bookings',
             subtitle:
-                'Search bookings, scan paper applications, and print agreements for signature.',
-            trailing: Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  onPressed: _scanApplication,
-                  icon: const Icon(Icons.document_scanner_outlined),
-                  label: const Text('Scan Application'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _printBlankApplication,
-                  icon: const Icon(Icons.description_outlined),
-                  label: const Text('Print Blank Application'),
-                ),
-              ],
+                'Manage reservations, paper applications, and printable contracts.',
+          ),
+          const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _scanApplication,
+                    icon: const Icon(Icons.document_scanner_outlined),
+                    label: const Text('Scan / Upload Filled Application'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _printBlankApplication,
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('Print Blank Application'),
+                  ),
+                  const Text(
+                    'Use the blank form for handwriting, then scan/upload it to extract and review the details.',
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           Row(
             children: [
               SizedBox(
@@ -377,7 +395,7 @@ class _BookingsPageState extends State<BookingsPage> {
                                           _uploadPaperApplication(b),
                                       icon: const Icon(Icons.upload_file_outlined,
                                           size: 16),
-                                      label: const Text('Upload Form'),
+                                      label: const Text('Attach Filled Application'),
                                     ),
                                     const SizedBox(width: 6),
                                     FilledButton.tonalIcon(
