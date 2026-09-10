@@ -11,6 +11,7 @@ import 'new_booking_page.dart';
 import 'planner_page.dart';
 import 'reports_page.dart';
 import 'settings_page.dart';
+import 'staff_page.dart';
 
 class ShellPage extends StatefulWidget {
   const ShellPage({super.key, required this.repository});
@@ -22,19 +23,60 @@ class ShellPage extends StatefulWidget {
 }
 
 class _ShellPageState extends State<ShellPage> {
-  int _index = 0;
+  String _pageKey = 'dashboard';
   int _refreshToken = 0;
   int _newBookingToken = 0;
   Uint8List? _logoBytes;
+  String? _role;
+  String _displayName = '';
+  bool _profileLoading = true;
 
   static const _sidebar = Color(0xFF0C4A39);
   static const _sidebarDark = Color(0xFF093F31);
   static const _mintText = Color(0xFFC8DDD5);
 
+  bool get _canBook =>
+      _role == 'admin' || _role == 'manager' || _role == 'booking_officer';
+  bool get _canViewReports =>
+      _role == 'admin' || _role == 'manager' || _role == 'finance';
+  bool get _canManageSettings => _role == 'admin' || _role == 'manager';
+  bool get _canManageStaff => _role == 'admin';
+
   @override
   void initState() {
     super.initState();
+    _loadProfile();
     _loadBranding();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      final row = await Supabase.instance.client
+          .from('wesley_staff_users')
+          .select('role, active, display_name, username')
+          .eq('user_id', user.id)
+          .single();
+      if (!mounted) return;
+      if (row['active'] != true) {
+        await Supabase.instance.client.auth.signOut();
+        return;
+      }
+      setState(() {
+        _role = row['role']?.toString() ?? 'viewer';
+        _displayName = row['display_name']?.toString().trim().isNotEmpty == true
+            ? row['display_name'].toString()
+            : row['username']?.toString() ?? 'Wesley Hall Staff';
+        _profileLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _role = 'viewer';
+        _profileLoading = false;
+      });
+    }
   }
 
   Future<void> _loadBranding() async {
@@ -49,55 +91,134 @@ class _ShellPageState extends State<ShellPage> {
     }
   }
 
-  void _goToNewBooking() => setState(() {
-        _newBookingToken++;
-        _index = 2;
-      });
+  void _goToNewBooking() {
+    if (!_canBook) return;
+    setState(() {
+      _newBookingToken++;
+      _pageKey = 'new';
+    });
+  }
 
-  void _goToPlanner() => setState(() => _index = 1);
-  void _goToBookings() => setState(() => _index = 3);
+  void _goToPlanner() => setState(() => _pageKey = 'planner');
+  void _goToBookings() => setState(() => _pageKey = 'bookings');
+
   void _refresh() {
     setState(() => _refreshToken++);
     _loadBranding();
+    _loadProfile();
+  }
+
+  List<_ShellDestination> _destinations() {
+    final items = <_ShellDestination>[
+      _ShellDestination(
+        keyName: 'dashboard',
+        icon: Icons.home_outlined,
+        label: 'Dashboard',
+        page: DashboardPage(
+          key: ValueKey('dashboard-$_refreshToken'),
+          repository: widget.repository,
+          onNewBooking: _goToNewBooking,
+          onPlanner: _goToPlanner,
+          onBookings: _goToBookings,
+        ),
+      ),
+      _ShellDestination(
+        keyName: 'planner',
+        icon: Icons.calendar_month_outlined,
+        label: 'Hall Planner',
+        page: PlannerPage(
+          key: ValueKey('planner-$_refreshToken'),
+          repository: widget.repository,
+          onNewBooking: _goToNewBooking,
+        ),
+      ),
+    ];
+
+    if (_canBook) {
+      items.add(
+        _ShellDestination(
+          keyName: 'new',
+          icon: Icons.add_circle_outline,
+          label: 'New Booking',
+          page: NewBookingPage(
+            key: ValueKey('new-booking-$_newBookingToken'),
+            repository: widget.repository,
+            onSaved: () {
+              _refresh();
+              setState(() => _pageKey = 'bookings');
+            },
+          ),
+        ),
+      );
+    }
+
+    items.add(
+      _ShellDestination(
+        keyName: 'bookings',
+        icon: Icons.event_note_outlined,
+        label: 'Bookings',
+        page: BookingsPage(
+          key: ValueKey('bookings-$_refreshToken'),
+          repository: widget.repository,
+        ),
+      ),
+    );
+
+    if (_canViewReports) {
+      items.add(
+        _ShellDestination(
+          keyName: 'reports',
+          icon: Icons.bar_chart_outlined,
+          label: 'Reports',
+          page: ReportsPage(
+            key: ValueKey('reports-$_refreshToken'),
+            repository: widget.repository,
+          ),
+        ),
+      );
+    }
+
+    if (_canManageSettings) {
+      items.add(
+        _ShellDestination(
+          keyName: 'settings',
+          icon: Icons.settings_outlined,
+          label: 'Settings',
+          page: SettingsPage(
+            key: ValueKey('settings-$_refreshToken'),
+            repository: widget.repository,
+            onSaved: _refresh,
+          ),
+        ),
+      );
+    }
+
+    if (_canManageStaff) {
+      items.add(
+        const _ShellDestination(
+          keyName: 'staff',
+          icon: Icons.admin_panel_settings_outlined,
+          label: 'Staff & Permissions',
+          page: StaffPage(),
+        ),
+      );
+    }
+
+    return items;
   }
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      DashboardPage(
-        key: ValueKey('dashboard-$_refreshToken'),
-        repository: widget.repository,
-        onNewBooking: _goToNewBooking,
-        onPlanner: _goToPlanner,
-        onBookings: _goToBookings,
-      ),
-      PlannerPage(
-        key: ValueKey('planner-$_refreshToken'),
-        repository: widget.repository,
-        onNewBooking: _goToNewBooking,
-      ),
-      NewBookingPage(
-        key: ValueKey('new-booking-$_newBookingToken'),
-        repository: widget.repository,
-        onSaved: () {
-          _refresh();
-          setState(() => _index = 3);
-        },
-      ),
-      BookingsPage(
-        key: ValueKey('bookings-$_refreshToken'),
-        repository: widget.repository,
-      ),
-      ReportsPage(
-        key: ValueKey('reports-$_refreshToken'),
-        repository: widget.repository,
-      ),
-      SettingsPage(
-        key: ValueKey('settings-$_refreshToken'),
-        repository: widget.repository,
-        onSaved: _refresh,
-      ),
-    ];
+    if (_profileLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final destinations = _destinations();
+    var selectedIndex = destinations.indexWhere((d) => d.keyName == _pageKey);
+    if (selectedIndex < 0) {
+      selectedIndex = 0;
+      _pageKey = destinations.first.keyName;
+    }
 
     return Scaffold(
       body: Row(
@@ -116,7 +237,7 @@ class _ShellPageState extends State<ShellPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 18, 26),
+                    padding: const EdgeInsets.fromLTRB(24, 24, 18, 22),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -152,36 +273,51 @@ class _ShellPageState extends State<ShellPage> {
                       ],
                     ),
                   ),
-                  _navItem(0, Icons.home_outlined, 'Dashboard'),
-                  _navItem(1, Icons.calendar_month_outlined, 'Hall Planner'),
-                  _navItem(2, Icons.add_circle_outline, 'New Booking'),
-                  _navItem(3, Icons.event_note_outlined, 'Bookings'),
-                  _navItem(4, Icons.bar_chart_outlined, 'Reports'),
-                  _navItem(5, Icons.settings_outlined, 'Settings'),
+                  ...List.generate(
+                    destinations.length,
+                    (index) => _navItem(
+                      destinations[index],
+                      selected: index == selectedIndex,
+                    ),
+                  ),
                   const Spacer(),
-                  if (widget.repository.isDemoMode)
+                  if (!widget.repository.isDemoMode) ...[
                     Container(
-                      margin: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: .08),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        'DEMO MODE\nSupabase is not connected yet.',
-                        style: TextStyle(
-                          color: Color(0xFFD8E7E1),
-                          fontSize: 11,
-                          height: 1.4,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _displayName.isEmpty ? 'Wesley Hall Staff' : _displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _roleLabel(_role ?? 'viewer'),
+                            style: const TextStyle(
+                              color: Color(0xFF9CC8B7),
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ],
                       ),
-                    )
-                  else ...[
+                    ),
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24),
                       child: Divider(color: Colors.white24, height: 1),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: TextButton.icon(
@@ -197,7 +333,7 @@ class _ShellPageState extends State<ShellPage> {
                       ),
                     ),
                     const Padding(
-                      padding: EdgeInsets.fromLTRB(28, 8, 24, 22),
+                      padding: EdgeInsets.fromLTRB(28, 4, 24, 18),
                       child: Row(
                         children: [
                           Icon(Icons.eco_outlined,
@@ -221,16 +357,20 @@ class _ShellPageState extends State<ShellPage> {
               ),
             ),
           ),
-          Expanded(child: IndexedStack(index: _index, children: pages)),
+          Expanded(
+            child: IndexedStack(
+              index: selectedIndex,
+              children: destinations.map((d) => d.page).toList(),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _navItem(int index, IconData icon, String label) {
-    final selected = _index == index;
+  Widget _navItem(_ShellDestination item, {required bool selected}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       child: Material(
         color: selected
             ? Colors.white.withValues(alpha: .14)
@@ -238,9 +378,7 @@ class _ShellPageState extends State<ShellPage> {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: index == 2
-              ? _goToNewBooking
-              : () => setState(() => _index = index),
+          onTap: () => setState(() => _pageKey = item.keyName),
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
@@ -250,21 +388,23 @@ class _ShellPageState extends State<ShellPage> {
                     )
                   : null,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
             child: Row(
               children: [
                 Icon(
-                  icon,
+                  item.icon,
                   color: selected ? Colors.white : _mintText,
-                  size: 22,
+                  size: 21,
                 ),
                 const SizedBox(width: 13),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? Colors.white : _mintText,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      color: selected ? Colors.white : _mintText,
+                      fontWeight:
+                          selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -274,4 +414,26 @@ class _ShellPageState extends State<ShellPage> {
       ),
     );
   }
+
+  String _roleLabel(String role) => switch (role) {
+        'admin' => 'Administrator',
+        'manager' => 'Manager',
+        'booking_officer' => 'Booking Officer',
+        'finance' => 'Finance',
+        _ => 'Viewer',
+      };
+}
+
+class _ShellDestination {
+  const _ShellDestination({
+    required this.keyName,
+    required this.icon,
+    required this.label,
+    required this.page,
+  });
+
+  final String keyName;
+  final IconData icon;
+  final String label;
+  final Widget page;
 }
