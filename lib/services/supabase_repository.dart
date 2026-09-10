@@ -337,6 +337,10 @@ class SupabaseWesleyRepository implements WesleyRepository {
             ? null
             : DateTime.tryParse(row['hold_expires_at'].toString()),
         inspection: inspection,
+        seriesKey: row['series_key'] as String?,
+        seriesRule: row['series_rule'] as String?,
+        seriesIndex: (row['series_index'] as num?)?.toInt(),
+        seriesCount: (row['series_count'] as num?)?.toInt(),
         extras: extrasRaw.map<BookingExtra>((raw) {
           final item = raw as Map<String, dynamic>;
           final service = item['service'] as Map<String, dynamic>?;
@@ -440,6 +444,10 @@ class SupabaseWesleyRepository implements WesleyRepository {
         'damage_deposit_required': booking.damageDepositRequired,
         'notes': booking.notes,
         'hold_expires_at': booking.holdExpiresAt?.toIso8601String(),
+        'series_key': booking.seriesKey,
+        'series_rule': booking.seriesRule,
+        'series_index': booking.seriesIndex,
+        'series_count': booking.seriesCount,
       };
 
   @override
