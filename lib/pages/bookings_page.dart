@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../models/wesley_models.dart';
-import 'booking_detail_page.dart';
 import '../services/contract_service.dart';
 import '../services/wesley_repository.dart';
 import '../widgets/page_header.dart';
+import 'booking_detail_page.dart';
+import 'edit_booking_page.dart';
 
 class BookingsPage extends StatefulWidget {
   const BookingsPage({super.key, required this.repository});
@@ -26,6 +27,8 @@ class _BookingsPageState extends State<BookingsPage> {
     super.initState();
     _future = widget.repository.listBookings();
   }
+
+  void _refresh() => setState(() => _future = widget.repository.listBookings());
 
   Future<void> _printContract(Booking booking) async {
     try {
@@ -64,7 +67,20 @@ class _BookingsPageState extends State<BookingsPage> {
       ),
     );
     if (!mounted) return;
-    setState(() => _future = widget.repository.listBookings());
+    _refresh();
+  }
+
+  Future<void> _editBooking(Booking booking) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditBookingPage(
+          repository: widget.repository,
+          booking: booking,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (changed == true) _refresh();
   }
 
   @override
@@ -77,7 +93,7 @@ class _BookingsPageState extends State<BookingsPage> {
           const PageHeader(
             title: 'Bookings',
             subtitle:
-                'Search bookings, review hall access times, and print agreements for signature.',
+                'Search bookings, edit reservations, review hall access times, and print agreements.',
           ),
           const SizedBox(height: 18),
           Row(
@@ -120,8 +136,7 @@ class _BookingsPageState extends State<BookingsPage> {
               const Spacer(),
               IconButton(
                 tooltip: 'Refresh',
-                onPressed: () =>
-                    setState(() => _future = widget.repository.listBookings()),
+                onPressed: _refresh,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -164,9 +179,9 @@ class _BookingsPageState extends State<BookingsPage> {
                       padding: const EdgeInsets.all(14),
                       child: SingleChildScrollView(
                         child: DataTable(
-                          columnSpacing: 22,
+                          columnSpacing: 20,
                           dataRowMinHeight: 66,
-                          dataRowMaxHeight: 78,
+                          dataRowMaxHeight: 80,
                           columns: const [
                             DataColumn(label: Text('REF')),
                             DataColumn(label: Text('EVENT DATE')),
@@ -178,9 +193,10 @@ class _BookingsPageState extends State<BookingsPage> {
                             DataColumn(label: Text('ACTIONS')),
                           ],
                           rows: rows.map((b) {
-                            final displayName = b.isChurchUse && b.churchGroup.isNotEmpty
-                                ? b.churchGroup
-                                : b.clientName;
+                            final displayName =
+                                b.isChurchUse && b.churchGroup.isNotEmpty
+                                    ? b.churchGroup
+                                    : b.clientName;
                             return DataRow(cells: [
                               DataCell(
                                 Text(
@@ -258,14 +274,21 @@ class _BookingsPageState extends State<BookingsPage> {
                                     OutlinedButton.icon(
                                       onPressed: () => _openBooking(b),
                                       icon: const Icon(Icons.open_in_new,
-                                          size: 17),
+                                          size: 16),
                                       label: const Text('Open'),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 7),
+                                    OutlinedButton.icon(
+                                      onPressed: () => _editBooking(b),
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 16),
+                                      label: const Text('Edit'),
+                                    ),
+                                    const SizedBox(width: 7),
                                     FilledButton.tonalIcon(
                                       onPressed: () => _printContract(b),
                                       icon: const Icon(Icons.print_outlined,
-                                          size: 17),
+                                          size: 16),
                                       label: const Text('Print Contract'),
                                     ),
                                   ],
