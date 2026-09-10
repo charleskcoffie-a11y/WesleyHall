@@ -66,6 +66,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
             (rules['damage_deposit_amount'] as num?)?.toDouble() ?? 500,
         chargeSetupTime: rules['charge_setup_time'] as bool? ?? false,
         chargeCleanupTime: rules['charge_cleanup_time'] as bool? ?? false,
+        holdHours: (rules['hold_hours'] as num?)?.toInt() ?? 48,
       ),
       spaces: spacesRows
           .map<HallSpace>((m) => HallSpace(
@@ -127,6 +128,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
       'damage_deposit_amount': rules.damageDepositAmount,
       'charge_setup_time': rules.chargeSetupTime,
       'charge_cleanup_time': rules.chargeCleanupTime,
+      'hold_hours': rules.holdHours,
     });
   }
 
@@ -291,6 +293,9 @@ class SupabaseWesleyRepository implements WesleyRepository {
         clientSignedAt: row['client_signed_at'] == null
             ? null
             : DateTime.tryParse(row['client_signed_at'].toString()),
+        holdExpiresAt: row['hold_expires_at'] == null
+            ? null
+            : DateTime.tryParse(row['hold_expires_at'].toString()),
         extras: extrasRaw.map<BookingExtra>((raw) {
           final item = raw as Map<String, dynamic>;
           final service = item['service'] as Map<String, dynamic>?;
@@ -361,6 +366,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
         'booking_deposit_percent': booking.bookingDepositPercent,
         'damage_deposit_required': booking.damageDepositRequired,
         'notes': booking.notes,
+        'hold_expires_at': booking.holdExpiresAt?.toIso8601String(),
       };
 
   @override
