@@ -26,6 +26,7 @@ class BookingDetailPage extends StatefulWidget {
 class _BookingDetailPageState extends State<BookingDetailPage> {
   Booking? booking;
   SettingsBundle? settings;
+  List<AuditEvent> auditEvents = const [];
   bool busy = true;
 
   @override
@@ -37,10 +38,12 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   Future<void> load() async {
     final s = await widget.repository.loadSettings();
     final rows = await widget.repository.listBookings();
+    final audit = await widget.repository.listAuditLog(widget.bookingId);
     if (!mounted) return;
     setState(() {
       settings = s;
       booking = rows.where((b) => b.id == widget.bookingId).firstOrNull;
+      auditEvents = audit;
       busy = false;
     });
   }
@@ -370,6 +373,37 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   children: [
                     Row(
                       children: [
+                        Icon(Icons.history_outlined, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Booking File / Timeline',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text('A running history of changes, signatures, payments, and status updates for this reservation.'),
+                    const SizedBox(height: 14),
+                    if (auditEvents.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Text('No timeline entries yet. New activity will appear here automatically.'),
+                      )
+                    else
+                      ...auditEvents.map(_timelineEvent),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
                         Text('Payments', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                         const Spacer(),
                         FilledButton.icon(onPressed: busy ? null : recordPayment, icon: const Icon(Icons.add_card), label: const Text('Record Payment')),
@@ -404,6 +438,49 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _timelineEvent(AuditEvent event) {
+    final icon = switch (event.action) {
+      'created' => Icons.add_circle_outline,
+      'payment_recorded' => Icons.payments_outlined,
+      'signed' => Icons.draw_outlined,
+      'status_changed' => Icons.swap_horiz_outlined,
+      _ => Icons.edit_outlined,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(event.summary, style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  dateTime(event.createdAt.toLocal()),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
