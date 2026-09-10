@@ -99,7 +99,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
     });
   }
 
-  DateTime combineForDate(DateTime date, TimeOfDay value, {bool finish = false}) {
+  DateTime combineForDate(DateTime date, TimeOfDay value,
+      {bool finish = false}) {
     var result = DateTime(
       date.year,
       date.month,
@@ -221,7 +222,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
       if (conflicts.isNotEmpty) {
         if (!mounted) return;
         final preview = conflicts.take(3).map(_date).join(', ');
-        final extra = conflicts.length > 3 ? ' and ${conflicts.length - 3} more' : '';
+        final extra =
+            conflicts.length > 3 ? ' and ${conflicts.length - 3} more' : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -245,6 +247,10 @@ class _NewBookingPageState extends State<NewBookingPage> {
                     unitPrice: e.price,
                   ))
               .toList();
+
+      final seriesKey = isChurchUse && dates.length > 1
+          ? 'church-${DateTime.now().microsecondsSinceEpoch}'
+          : null;
 
       for (var index = 0; index < dates.length; index++) {
         final date = dates[index];
@@ -290,6 +296,10 @@ class _NewBookingPageState extends State<NewBookingPage> {
           notes: notes.text.trim(),
           holdExpiresAt:
               asHold ? DateTime.now().add(Duration(hours: holdHours)) : null,
+          seriesKey: seriesKey,
+          seriesRule: seriesKey == null ? null : recurrence,
+          seriesIndex: seriesKey == null ? null : index + 1,
+          seriesCount: seriesKey == null ? null : dates.length,
         );
 
         await widget.repository.createBooking(booking);
@@ -302,7 +312,7 @@ class _NewBookingPageState extends State<NewBookingPage> {
             asHold
                 ? 'Date held for $holdHours hours. The hold will stop blocking the hall after it expires.'
                 : isChurchUse && dates.length > 1
-                    ? '${dates.length} recurring church reservations saved.'
+                    ? '${dates.length} recurring church reservations saved as one manageable series.'
                     : isChurchUse
                         ? 'Church use reservation saved. No payment required.'
                         : 'Rental booking saved. Status: Awaiting Deposit.',
@@ -510,7 +520,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                   ),
                                   ButtonSegment(
                                     value: 'monthly',
-                                    icon: Icon(Icons.calendar_view_month_outlined),
+                                    icon:
+                                        Icon(Icons.calendar_view_month_outlined),
                                     label: Text('Monthly'),
                                   ),
                                 ],
@@ -527,7 +538,20 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                     const SizedBox(width: 12),
                                     DropdownButton<int>(
                                       value: recurrenceCount,
-                                      items: [2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 26, 52]
+                                      items: [
+                                        2,
+                                        3,
+                                        4,
+                                        6,
+                                        8,
+                                        10,
+                                        12,
+                                        16,
+                                        20,
+                                        24,
+                                        26,
+                                        52
+                                      ]
                                           .map((value) => DropdownMenuItem(
                                                 value: value,
                                                 child: Text('$value'),
@@ -535,7 +559,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                           .toList(),
                                       onChanged: (value) {
                                         if (value != null) {
-                                          setState(() => recurrenceCount = value);
+                                          setState(
+                                              () => recurrenceCount = value);
                                         }
                                       },
                                     ),
@@ -634,8 +659,9 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                   child: Text(
                                     recurrence == 'none'
                                         ? 'NO PAYMENT REQUIRED\nThe hall is reserved and protected from double-booking.'
-                                        : 'NO PAYMENT REQUIRED\n${occurrences.length} ${recurrence.toUpperCase()} reservations will be created after all dates pass conflict checking.',
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                        : 'NO PAYMENT REQUIRED\n${occurrences.length} ${recurrence.toUpperCase()} reservations will be created as one manageable series after all dates pass conflict checking.',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -674,7 +700,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                     ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Temporary Hold',
@@ -696,12 +723,14 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                             items: const [24, 48, 72]
                                                 .map((hours) => DropdownMenuItem(
                                                       value: hours,
-                                                      child: Text('$hours hours'),
+                                                      child:
+                                                          Text('$hours hours'),
                                                     ))
                                                 .toList(),
                                             onChanged: (value) {
                                               if (value != null) {
-                                                setState(() => holdHours = value);
+                                                setState(
+                                                    () => holdHours = value);
                                               }
                                             },
                                           ),
@@ -714,9 +743,12 @@ class _NewBookingPageState extends State<NewBookingPage> {
                               const SizedBox(height: 20),
                               if (!isChurchUse) ...[
                                 OutlinedButton.icon(
-                                  onPressed: saving ? null : () => save(asHold: true),
+                                  onPressed: saving
+                                      ? null
+                                      : () => save(asHold: true),
                                   icon: const Icon(Icons.schedule_outlined),
-                                  label: Text('Hold Date for $holdHours Hours'),
+                                  label:
+                                      Text('Hold Date for $holdHours Hours'),
                                 ),
                                 const SizedBox(height: 10),
                               ],
