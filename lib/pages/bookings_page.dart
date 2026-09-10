@@ -4,15 +4,16 @@ import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/wesley_models.dart';
-import 'booking_detail_page.dart';
-import 'booking_documents_page.dart';
-import 'edit_booking_page.dart';
-import 'scan_application_page.dart';
 import '../services/blank_application_service.dart';
 import '../services/contract_service.dart';
 import '../services/paper_application_service.dart';
 import '../services/wesley_repository.dart';
 import '../widgets/page_header.dart';
+import 'booking_detail_page.dart';
+import 'booking_documents_page.dart';
+import 'duplicate_booking_page.dart';
+import 'edit_booking_page.dart';
+import 'scan_application_page.dart';
 
 class BookingsPage extends StatefulWidget {
   const BookingsPage({super.key, required this.repository});
@@ -48,8 +49,14 @@ class _BookingsPageState extends State<BookingsPage> {
           .select('role')
           .eq('user_id', user.id)
           .single();
-      if (mounted) setState(() => _role = row['role']?.toString() ?? 'viewer');
+      if (mounted) {
+        setState(() => _role = row['role']?.toString() ?? 'viewer');
+      }
     } catch (_) {}
+  }
+
+  void _refresh() {
+    if (mounted) setState(() => _future = widget.repository.listBookings());
   }
 
   Future<void> _scanApplication() async {
@@ -58,9 +65,7 @@ class _BookingsPageState extends State<BookingsPage> {
         builder: (_) => ScanApplicationPage(repository: widget.repository),
       ),
     );
-    if (changed == true && mounted) {
-      setState(() => _future = widget.repository.listBookings());
-    }
+    if (changed == true) _refresh();
   }
 
   Future<void> _printBlankApplication() async {
@@ -87,18 +92,12 @@ class _BookingsPageState extends State<BookingsPage> {
 
   Future<void> _uploadPaperApplication(Booking booking) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
-        allowMultiple: false,
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null) throw Exception('Unable to read the selected file.');
-
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
       var extension = (file.extension ?? 'pdf').toLowerCase();
       if (extension == 'jpeg') extension = 'jpg';
 
@@ -163,8 +162,7 @@ class _BookingsPageState extends State<BookingsPage> {
         ),
       ),
     );
-    if (!mounted) return;
-    setState(() => _future = widget.repository.listBookings());
+    _refresh();
   }
 
   Future<void> _openDocuments(Booking booking) async {
@@ -184,8 +182,28 @@ class _BookingsPageState extends State<BookingsPage> {
         ),
       ),
     );
-    if (changed == true && mounted) {
-      setState(() => _future = widget.repository.listBookings());
+    if (changed == true) _refresh();
+  }
+
+  Future<void> _duplicateBooking(Booking booking) async {
+    if (!_canBook) return;
+    final copied = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DuplicateBookingPage(
+          repository: widget.repository,
+          source: booking,
+        ),
+      ),
+    );
+    if (copied == true && mounted) {
+      _refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'New reservation created from ${booking.referenceNumber}. A new reference number was assigned.',
+          ),
+        ),
+      );
     }
   }
 
@@ -203,7 +221,9 @@ class _BookingsPageState extends State<BookingsPage> {
             const SizedBox(height: 6),
             Text('Event: ${_date(booking.eventDate)}'),
             if (booking.holdExpiresAt != null)
-              Text('Current expiry: ${_dateTime(booking.holdExpiresAt!.toLocal())}'),
+              Text(
+                'Current expiry: ${_dateTime(booking.holdExpiresAt!.toLocal())}',
+              ),
             const SizedBox(height: 12),
             const Text(
               'Convert the hold when the client proceeds, extend it when more time is approved, or release it if the client no longer needs the date.',
@@ -236,14 +256,14 @@ class _BookingsPageState extends State<BookingsPage> {
     if (action == null) return;
 
     try {
-      final client = Supabase.instance.client;
+      final table = Supabase.instance.client.from('wesley_bookings');
       if (action == 'convert') {
-        await client.from('wesley_bookings').update({
+        await table.update({
           'status': 'awaiting_deposit',
           'hold_expires_at': null,
         }).eq('id', booking.id);
       } else if (action == 'release') {
-        await client.from('wesley_bookings').update({
+        await table.update({
           'status': 'cancelled',
           'hold_expires_at': null,
         }).eq('id', booking.id);
@@ -253,19 +273,22 @@ class _BookingsPageState extends State<BookingsPage> {
           builder: (dialogContext) => SimpleDialog(
             title: const Text('Extend Hold By'),
             children: [24, 48, 72]
-                .map((h) => SimpleDialogOption(
-                      onPressed: () => Navigator.pop(dialogContext, h),
-                      child: Text('$h hours'),
-                    ))
+                .map(
+                  (hours) => SimpleDialogOption(
+                    onPressed: () => Navigator.pop(dialogContext, hours),
+                    child: Text('$hours hours'),
+                  ),
+                )
                 .toList(),
           ),
         );
         if (hours == null) return;
+        final now = DateTime.now();
         final base = booking.holdExpiresAt != null &&
-                booking.holdExpiresAt!.isAfter(DateTime.now())
+                booking.holdExpiresAt!.isAfter(now)
             ? booking.holdExpiresAt!
-            : DateTime.now();
-        await client.from('wesley_bookings').update({
+            : now;
+        await table.update({
           'hold_expires_at': base.add(Duration(hours: hours)).toIso8601String(),
         }).eq('id', booking.id);
       }
@@ -282,7 +305,7 @@ class _BookingsPageState extends State<BookingsPage> {
           ),
         ),
       );
-      setState(() => _future = widget.repository.listBookings());
+      _refresh();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -309,13 +332,18 @@ class _BookingsPageState extends State<BookingsPage> {
             children: [
               Text(
                 booking.eventDetails,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(height: 5),
-              Text('$rule series • Occurrence $currentIndex${total > 0 ? ' of $total' : ''}'),
+              Text(
+                '$rule series - Occurrence $currentIndex${total > 0 ? ' of $total' : ''}',
+              ),
               const SizedBox(height: 12),
               const Text(
-                'Edit changes only this occurrence. Use the options below to manage the linked series. Updating future details copies the group, responsible person, contact details, activity name, attendance and notes; dates, times and hall remain unchanged for safety.',
+                'Edit changes only this occurrence. Updating future details copies the group, responsible person, contact details, activity name, attendance and notes. Dates, times and hall remain unchanged for safety.',
               ),
             ],
           ),
@@ -436,12 +464,32 @@ class _BookingsPageState extends State<BookingsPage> {
           ),
         ),
       );
-      setState(() => _future = widget.repository.listBookings());
+      _refresh();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unable to manage recurring series: $e')),
       );
+    }
+  }
+
+  Future<void> _handleMoreAction(String action, Booking booking) async {
+    switch (action) {
+      case 'edit':
+        await _editBooking(booking);
+        break;
+      case 'hold':
+        await _manageHold(booking);
+        break;
+      case 'series':
+        await _manageSeries(booking);
+        break;
+      case 'attach':
+        await _uploadPaperApplication(booking);
+        break;
+      case 'print':
+        await _printContract(booking);
+        break;
     }
   }
 
@@ -455,7 +503,7 @@ class _BookingsPageState extends State<BookingsPage> {
           const PageHeader(
             title: 'Bookings',
             subtitle:
-                'Manage reservations, paper applications, documents, holds, recurring activities, and printable contracts.',
+                'Manage reservations, copies, documents, holds, recurring activities, paper applications, and contracts.',
           ),
           const SizedBox(height: 14),
           Card(
@@ -478,7 +526,7 @@ class _BookingsPageState extends State<BookingsPage> {
                     label: const Text('Print Blank Application'),
                   ),
                   const Text(
-                    'Paper applications and other files can also be stored in each booking Document Centre.',
+                    'Use Copy to create a fresh reservation from an existing booking without copying payments or documents.',
                   ),
                 ],
               ),
@@ -508,16 +556,25 @@ class _BookingsPageState extends State<BookingsPage> {
                     DropdownMenuItem(value: 'all', child: Text('All Statuses')),
                     DropdownMenuItem(value: 'hold', child: Text('On Hold')),
                     DropdownMenuItem(
-                        value: 'awaiting_deposit',
-                        child: Text('Awaiting Deposit')),
+                      value: 'awaiting_deposit',
+                      child: Text('Awaiting Deposit'),
+                    ),
                     DropdownMenuItem(
-                        value: 'confirmed', child: Text('Confirmed')),
+                      value: 'confirmed',
+                      child: Text('Confirmed'),
+                    ),
                     DropdownMenuItem(
-                        value: 'reserved', child: Text('Church Use')),
+                      value: 'reserved',
+                      child: Text('Church Use'),
+                    ),
                     DropdownMenuItem(
-                        value: 'completed', child: Text('Completed')),
+                      value: 'completed',
+                      child: Text('Completed'),
+                    ),
                     DropdownMenuItem(
-                        value: 'cancelled', child: Text('Cancelled')),
+                      value: 'cancelled',
+                      child: Text('Cancelled'),
+                    ),
                   ],
                   onChanged: (value) =>
                       setState(() => _status = value ?? 'all'),
@@ -526,8 +583,7 @@ class _BookingsPageState extends State<BookingsPage> {
               const Spacer(),
               IconButton(
                 tooltip: 'Refresh',
-                onPressed: () =>
-                    setState(() => _future = widget.repository.listBookings()),
+                onPressed: _refresh,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -584,165 +640,7 @@ class _BookingsPageState extends State<BookingsPage> {
                             DataColumn(label: Text('TOTAL')),
                             DataColumn(label: Text('ACTIONS')),
                           ],
-                          rows: rows.map((b) {
-                            final displayName =
-                                b.isChurchUse && b.churchGroup.isNotEmpty
-                                    ? b.churchGroup
-                                    : b.clientName;
-                            return DataRow(cells: [
-                              DataCell(
-                                Text(
-                                  b.referenceNumber,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600),
-                                ),
-                                onTap: () => _openBooking(b),
-                              ),
-                              DataCell(Text(_date(b.eventDate))),
-                              DataCell(
-                                SizedBox(
-                                  width: 215,
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                      Text(
-                                        b.eventDetails,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 11),
-                                      ),
-                                      if (b.isRecurring)
-                                        Text(
-                                          '${b.seriesRule == 'monthly' ? 'Monthly' : 'Weekly'} series • ${b.seriesIndex ?? '?'} of ${b.seriesCount ?? '?'}',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF5A6E66),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              DataCell(Text(b.hallSpaceName)),
-                              DataCell(
-                                SizedBox(
-                                  width: 170,
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Access  ${_time(b.accessStart)}',
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                      Text('Vacate  ${_time(b.vacateEnd)}'),
-                                      if (b.isHold && b.holdExpiresAt != null)
-                                        Text(
-                                          'Expires ${_shortDateTime(b.holdExpiresAt!.toLocal())}',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                Chip(
-                                  label: Text(
-                                    b.isExpiredHold
-                                        ? 'HOLD EXPIRED'
-                                        : b.status
-                                            .replaceAll('_', ' ')
-                                            .toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(Text(
-                                  '\$${b.totalCharge.toStringAsFixed(2)}')),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () => _openBooking(b),
-                                      icon: const Icon(Icons.open_in_new,
-                                          size: 16),
-                                      label: const Text('Open'),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    OutlinedButton.icon(
-                                      onPressed: () => _openDocuments(b),
-                                      icon: const Icon(Icons.folder_outlined,
-                                          size: 16),
-                                      label: const Text('Documents'),
-                                    ),
-                                    if (_canBook) ...[
-                                      const SizedBox(width: 6),
-                                      OutlinedButton.icon(
-                                        onPressed: () => _editBooking(b),
-                                        icon: const Icon(Icons.edit_outlined,
-                                            size: 16),
-                                        label: const Text('Edit'),
-                                      ),
-                                      if (b.isHold) ...[
-                                        const SizedBox(width: 6),
-                                        FilledButton.tonalIcon(
-                                          onPressed: () => _manageHold(b),
-                                          icon: const Icon(
-                                              Icons.hourglass_top_outlined,
-                                              size: 16),
-                                          label: const Text('Manage Hold'),
-                                        ),
-                                      ],
-                                      if (b.isRecurring) ...[
-                                        const SizedBox(width: 6),
-                                        FilledButton.tonalIcon(
-                                          onPressed: () => _manageSeries(b),
-                                          icon: const Icon(Icons.repeat_outlined,
-                                              size: 16),
-                                          label: const Text('Manage Series'),
-                                        ),
-                                      ],
-                                      const SizedBox(width: 6),
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _uploadPaperApplication(b),
-                                        icon: const Icon(
-                                            Icons.upload_file_outlined,
-                                            size: 16),
-                                        label: const Text('Attach Application'),
-                                      ),
-                                    ],
-                                    const SizedBox(width: 6),
-                                    FilledButton.tonalIcon(
-                                      onPressed: () => _printContract(b),
-                                      icon: const Icon(Icons.print_outlined,
-                                          size: 16),
-                                      label: const Text('Print Contract'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ]);
-                          }).toList(),
+                          rows: rows.map(_bookingRow).toList(),
                         ),
                       ),
                     ),
@@ -753,6 +651,174 @@ class _BookingsPageState extends State<BookingsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  DataRow _bookingRow(Booking booking) {
+    final displayName = booking.isChurchUse && booking.churchGroup.isNotEmpty
+        ? booking.churchGroup
+        : booking.clientName;
+
+    return DataRow(
+      cells: [
+        DataCell(
+          Text(
+            booking.referenceNumber,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          onTap: () => _openBooking(booking),
+        ),
+        DataCell(Text(_date(booking.eventDate))),
+        DataCell(
+          SizedBox(
+            width: 215,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  booking.eventDetails,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11),
+                ),
+                if (booking.isRecurring)
+                  Text(
+                    '${booking.seriesRule == 'monthly' ? 'Monthly' : 'Weekly'} series - ${booking.seriesIndex ?? '?'} of ${booking.seriesCount ?? '?'}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF5A6E66),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        DataCell(Text(booking.hallSpaceName)),
+        DataCell(
+          SizedBox(
+            width: 170,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Access  ${_time(booking.accessStart)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text('Vacate  ${_time(booking.vacateEnd)}'),
+                if (booking.isHold && booking.holdExpiresAt != null)
+                  Text(
+                    'Expires ${_shortDateTime(booking.holdExpiresAt!.toLocal())}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        DataCell(
+          Chip(
+            label: Text(
+              booking.isExpiredHold
+                  ? 'HOLD EXPIRED'
+                  : booking.status.replaceAll('_', ' ').toUpperCase(),
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        DataCell(Text('\$${booking.totalCharge.toStringAsFixed(2)}')),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openBooking(booking),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Open'),
+              ),
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                onPressed: () => _openDocuments(booking),
+                icon: const Icon(Icons.folder_outlined, size: 16),
+                label: const Text('Documents'),
+              ),
+              if (_canBook) ...[
+                const SizedBox(width: 6),
+                FilledButton.tonalIcon(
+                  onPressed: () => _duplicateBooking(booking),
+                  icon: const Icon(Icons.content_copy_outlined, size: 16),
+                  label: const Text('Copy'),
+                ),
+              ],
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                tooltip: 'More actions',
+                onSelected: (action) => _handleMoreAction(action, booking),
+                itemBuilder: (context) => [
+                  if (_canBook)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit Reservation'),
+                      ),
+                    ),
+                  if (_canBook && booking.isHold)
+                    const PopupMenuItem(
+                      value: 'hold',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.hourglass_top_outlined),
+                        title: Text('Manage Hold'),
+                      ),
+                    ),
+                  if (_canBook && booking.isRecurring)
+                    const PopupMenuItem(
+                      value: 'series',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.repeat_outlined),
+                        title: Text('Manage Series'),
+                      ),
+                    ),
+                  if (_canBook)
+                    const PopupMenuItem(
+                      value: 'attach',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.upload_file_outlined),
+                        title: Text('Attach Application'),
+                      ),
+                    ),
+                  const PopupMenuItem(
+                    value: 'print',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.print_outlined),
+                      title: Text('Print Contract'),
+                    ),
+                  ),
+                ],
+                icon: const Icon(Icons.more_vert),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -771,11 +837,10 @@ class _BookingsPageState extends State<BookingsPage> {
       '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
 
   String _time(DateTime d) {
-    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
-    return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
+    final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    return '$hour:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
   }
 
   String _dateTime(DateTime d) => '${_date(d)} ${_time(d)}';
-
   String _shortDateTime(DateTime d) => '${d.month}/${d.day} ${_time(d)}';
 }
