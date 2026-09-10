@@ -31,11 +31,13 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
   - Selected custom dates can be added as a later enhancement.
 - [ ] Duplicate / Copy Reservation
   - Copy an existing booking into a new draft with a new date/reference.
-- [ ] Booking Completion / Damage Inspection
+- [x] Booking Completion / Damage Inspection
   - Record no damage / damage found.
   - Add inspection notes and photos.
   - Record damage deduction and refund.
   - Mark booking Completed.
+  - Allow tablet camera capture or photo upload for inspection evidence.
+  - Show inspection activity in the booking timeline.
 
 ## Phase 3 - Communication & Governance
 
@@ -50,7 +52,7 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
   - Booking Officer.
   - Finance / Viewer.
 - [x] Audit Trail
-  - Record booking creation, edits, status changes, signatures, and payments.
+  - Record booking creation, edits, status changes, signatures, payments, and inspections.
   - Extend to settings changes as governance work is completed.
 
 ## Phase 4 - Document & Tablet Workflow
@@ -77,9 +79,9 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
 1. Booking File / Timeline + Audit Trail - COMPLETE
 2. Payment Receipts + Financial Reports - COMPLETE
 3. Recurring Church Activities - COMPLETE
-4. Temporary Hold / Pending Date - NEXT
-5. Booking Completion / Damage Inspection
-6. Duplicate / Copy Reservation
+4. Temporary Hold / Pending Date - IN PROGRESS
+5. Booking Completion / Damage Inspection - COMPLETE
+6. Duplicate / Copy Reservation - NEXT
 7. Staff Roles
 8. Communication Centre
 9. Tablet Reception Mode
