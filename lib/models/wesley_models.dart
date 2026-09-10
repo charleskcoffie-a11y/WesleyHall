@@ -189,6 +189,33 @@ class AuditEvent {
   final DateTime createdAt;
 }
 
+class DamageInspection {
+  const DamageInspection({
+    required this.id,
+    required this.bookingId,
+    required this.outcome,
+    required this.notes,
+    required this.damageDeduction,
+    required this.refundAmount,
+    required this.photoPaths,
+    required this.inspectedAt,
+    this.completedAt,
+  });
+
+  final String id;
+  final String bookingId;
+  final String outcome;
+  final String notes;
+  final double damageDeduction;
+  final double refundAmount;
+  final List<String> photoPaths;
+  final DateTime inspectedAt;
+  final DateTime? completedAt;
+
+  bool get isCompleted => completedAt != null;
+  bool get hasDamage => outcome == 'damage_found';
+}
+
 class Booking {
   const Booking({
     required this.id,
@@ -219,6 +246,7 @@ class Booking {
     this.clientSignaturePath,
     this.clientSignedAt,
     this.holdExpiresAt,
+    this.inspection,
   });
 
   final String id;
@@ -249,6 +277,7 @@ class Booking {
   final String? clientSignaturePath;
   final DateTime? clientSignedAt;
   final DateTime? holdExpiresAt;
+  final DamageInspection? inspection;
 
   bool get isChurchUse => reservationType == 'church_use';
   bool get isHold => status == 'hold';
@@ -287,7 +316,10 @@ class Booking {
     final refunded = payments
         .where((p) => p.paymentType == 'damage_refund')
         .fold<double>(0, (total, p) => total + p.amount);
-    final held = received - refunded;
+    final deduction = inspection?.isCompleted == true
+        ? inspection!.damageDeduction
+        : 0.0;
+    final held = received - refunded - deduction;
     return held > 0 ? held : 0;
   }
 
@@ -297,6 +329,7 @@ class Booking {
     String? clientSignaturePath,
     DateTime? clientSignedAt,
     DateTime? holdExpiresAt,
+    DamageInspection? inspection,
   }) {
     return Booking(
       id: id,
@@ -327,6 +360,7 @@ class Booking {
       clientSignaturePath: clientSignaturePath ?? this.clientSignaturePath,
       clientSignedAt: clientSignedAt ?? this.clientSignedAt,
       holdExpiresAt: holdExpiresAt ?? this.holdExpiresAt,
+      inspection: inspection ?? this.inspection,
     );
   }
 }
