@@ -9,6 +9,7 @@ import 'bookings_page.dart';
 import 'dashboard_page.dart';
 import 'new_booking_page.dart';
 import 'planner_page.dart';
+import 'reports_page.dart';
 import 'settings_page.dart';
 
 class ShellPage extends StatefulWidget {
@@ -87,6 +88,10 @@ class _ShellPageState extends State<ShellPage> {
         key: ValueKey('bookings-$_refreshToken'),
         repository: widget.repository,
       ),
+      ReportsPage(
+        key: ValueKey('reports-$_refreshToken'),
+        repository: widget.repository,
+      ),
       SettingsPage(
         key: ValueKey('settings-$_refreshToken'),
         repository: widget.repository,
@@ -124,10 +129,7 @@ class _ShellPageState extends State<ShellPage> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: Image.memory(
-                              _logoBytes!,
-                              fit: BoxFit.contain,
-                            ),
+                            child: Image.memory(_logoBytes!, fit: BoxFit.contain),
                           )
                         else
                           const Icon(Icons.church_outlined,
@@ -145,10 +147,7 @@ class _ShellPageState extends State<ShellPage> {
                         const SizedBox(height: 4),
                         const Text(
                           'GMCT Booking & Planning',
-                          style: TextStyle(
-                            color: _mintText,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: _mintText, fontSize: 12),
                         ),
                       ],
                     ),
@@ -157,7 +156,8 @@ class _ShellPageState extends State<ShellPage> {
                   _navItem(1, Icons.calendar_month_outlined, 'Hall Planner'),
                   _navItem(2, Icons.add_circle_outline, 'New Booking'),
                   _navItem(3, Icons.event_note_outlined, 'Bookings'),
-                  _navItem(4, Icons.settings_outlined, 'Settings'),
+                  _navItem(4, Icons.bar_chart_outlined, 'Reports'),
+                  _navItem(5, Icons.settings_outlined, 'Settings'),
                   const Spacer(),
                   if (widget.repository.isDemoMode)
                     Container(
@@ -185,8 +185,7 @@ class _ShellPageState extends State<ShellPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: TextButton.icon(
-                        onPressed: () =>
-                            Supabase.instance.client.auth.signOut(),
+                        onPressed: () => Supabase.instance.client.auth.signOut(),
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.white,
                           alignment: Alignment.centerLeft,
@@ -222,9 +221,7 @@ class _ShellPageState extends State<ShellPage> {
               ),
             ),
           ),
-          Expanded(
-            child: IndexedStack(index: _index, children: pages),
-          ),
+          Expanded(child: IndexedStack(index: _index, children: pages)),
         ],
       ),
     );
