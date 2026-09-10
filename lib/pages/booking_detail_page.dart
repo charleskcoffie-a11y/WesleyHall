@@ -9,6 +9,7 @@ import '../models/wesley_models.dart';
 import '../services/contract_service.dart';
 import '../services/payment_receipt_service.dart';
 import '../services/wesley_repository.dart';
+import '../widgets/damage_inspection_card.dart';
 
 class BookingDetailPage extends StatefulWidget {
   const BookingDetailPage({
@@ -69,7 +70,10 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
       }
       if (type == 'rental_balance') return b.remainingRentalBalance;
       if (type == 'damage_deposit') {
-        return (b.damageDepositRequired - b.damageDepositHeld)
+        final received = b.payments
+            .where((p) => p.paymentType == 'damage_deposit')
+            .fold<double>(0, (total, p) => total + p.amount);
+        return (b.damageDepositRequired - received)
             .clamp(0.0, double.infinity)
             .toDouble();
       }
@@ -318,7 +322,14 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     if (b == null) return const Scaffold(body: Center(child: Text('Booking not found.')));
 
     final depositDue = (b.requiredBookingDeposit - b.bookingDepositPaid).clamp(0.0, double.infinity).toDouble();
-    final damageDue = (b.damageDepositRequired - b.damageDepositHeld).clamp(0.0, double.infinity).toDouble();
+    final damageReceived = b.payments
+        .where((p) => p.paymentType == 'damage_deposit')
+        .fold<double>(0, (total, p) => total + p.amount);
+    final damageDue = b.status == 'completed'
+        ? 0.0
+        : (b.damageDepositRequired - damageReceived)
+            .clamp(0.0, double.infinity)
+            .toDouble();
 
     return Scaffold(
       appBar: AppBar(title: Text('${b.referenceNumber} - ${b.clientName}')),
@@ -385,11 +396,21 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                     Text('Hall access: ${dateTime(b.accessStart)}'),
                     Text('Vacate by: ${dateTime(b.vacateEnd)}'),
                     Text('Phone: ${b.phone}   Email: ${b.email}'),
+                    if (b.holdExpiresAt != null && b.isHold)
+                      Text('Hold expires: ${dateTime(b.holdExpiresAt!.toLocal())}'),
                     if (b.clientSignedAt != null) Text('Client signed: ${dateTime(b.clientSignedAt!)}'),
                   ],
                 ),
               ),
             ),
+            if (!b.isHold && b.status != 'cancelled') ...[
+              const SizedBox(height: 16),
+              DamageInspectionCard(
+                booking: b,
+                repository: widget.repository,
+                onChanged: load,
+              ),
+            ],
             const SizedBox(height: 16),
             Card(
               child: Padding(
@@ -408,7 +429,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    const Text('A running history of changes, signatures, payments, and status updates for this reservation.'),
+                    const Text('A running history of changes, signatures, payments, inspections, and status updates for this reservation.'),
                     const SizedBox(height: 14),
                     if (auditEvents.isEmpty)
                       const Padding(
@@ -482,6 +503,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
       'payment_recorded' => Icons.payments_outlined,
       'signed' => Icons.draw_outlined,
       'status_changed' => Icons.swap_horiz_outlined,
+      'inspection_started' => Icons.fact_check_outlined,
+      'inspection_completed' => Icons.task_alt_outlined,
       _ => Icons.edit_outlined,
     };
 
