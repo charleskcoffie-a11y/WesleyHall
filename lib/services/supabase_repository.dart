@@ -319,6 +319,27 @@ class SupabaseWesleyRepository implements WesleyRepository {
     }).toList();
   }
 
+  @override
+  Future<List<AuditEvent>> listAuditLog(String bookingId) async {
+    final rows = await client
+        .from('wesley_audit_log')
+        .select('id, entity_type, action, summary, created_at')
+        .eq('booking_id', bookingId)
+        .order('created_at', ascending: false);
+
+    return rows
+        .map<AuditEvent>((row) => AuditEvent(
+              id: row['id'].toString(),
+              entityType: row['entity_type'] as String? ?? 'booking',
+              action: row['action'] as String? ?? 'updated',
+              summary: row['summary'] as String? ?? 'Booking activity',
+              createdAt:
+                  DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+                      DateTime.now(),
+            ))
+        .toList();
+  }
+
   Map<String, dynamic> _bookingValues(Booking booking) => {
         'client_name': booking.clientName,
         'client_address': booking.clientAddress,
