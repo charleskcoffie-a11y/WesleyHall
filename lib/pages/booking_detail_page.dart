@@ -4,12 +4,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:printing/printing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/wesley_models.dart';
 import '../services/contract_service.dart';
 import '../services/payment_receipt_service.dart';
 import '../services/wesley_repository.dart';
 import '../widgets/damage_inspection_card.dart';
+import 'booking_documents_page.dart';
 
 class BookingDetailPage extends StatefulWidget {
   const BookingDetailPage({
@@ -29,7 +31,13 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   Booking? booking;
   SettingsBundle? settings;
   List<AuditEvent> auditEvents = const [];
+  String role = 'viewer';
   bool busy = true;
+
+  bool get canManageBooking =>
+      role == 'admin' || role == 'manager' || role == 'booking_officer';
+  bool get canRecordPayments => canManageBooking || role == 'finance';
+  bool get canPrintFinancialDocuments => canRecordPayments;
 
   @override
   void initState() {
@@ -41,16 +49,30 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     final s = await widget.repository.loadSettings();
     final rows = await widget.repository.listBookings();
     final audit = await widget.repository.listAuditLog(widget.bookingId);
+    var loadedRole = 'viewer';
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final profile = await Supabase.instance.client
+            .from('wesley_staff_users')
+            .select('role')
+            .eq('user_id', user.id)
+            .single();
+        loadedRole = profile['role']?.toString() ?? 'viewer';
+      }
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
       settings = s;
       booking = rows.where((b) => b.id == widget.bookingId).firstOrNull;
       auditEvents = audit;
+      role = loadedRole;
       busy = false;
     });
   }
 
   Future<void> recordPayment() async {
+    if (!canRecordPayments) return;
     final b = booking!;
     var type = b.bookingDepositPaid < b.requiredBookingDeposit
         ? 'booking_deposit'
@@ -96,10 +118,15 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   initialValue: type,
                   decoration: const InputDecoration(labelText: 'Payment Type'),
                   items: const [
-                    DropdownMenuItem(value: 'booking_deposit', child: Text('Booking Deposit')),
-                    DropdownMenuItem(value: 'rental_balance', child: Text('Rental Balance')),
-                    DropdownMenuItem(value: 'damage_deposit', child: Text('Damage Deposit')),
-                    DropdownMenuItem(value: 'damage_refund', child: Text('Damage Deposit Refund')),
+                    DropdownMenuItem(
+                        value: 'booking_deposit', child: Text('Booking Deposit')),
+                    DropdownMenuItem(
+                        value: 'rental_balance', child: Text('Rental Balance')),
+                    DropdownMenuItem(
+                        value: 'damage_deposit', child: Text('Damage Deposit')),
+                    DropdownMenuItem(
+                        value: 'damage_refund',
+                        child: Text('Damage Deposit Refund')),
                     DropdownMenuItem(value: 'other', child: Text('Other')),
                   ],
                   onChanged: (v) => setModal(() {
@@ -108,30 +135,44 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   }),
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: amount, decoration: const InputDecoration(labelText: 'Amount (CAD)')),
+                TextField(
+                    controller: amount,
+                    decoration: const InputDecoration(labelText: 'Amount (CAD)')),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: method,
                   decoration: const InputDecoration(labelText: 'Payment Method'),
                   items: const [
-                    DropdownMenuItem(value: 'E-Transfer', child: Text('E-Transfer')),
+                    DropdownMenuItem(
+                        value: 'E-Transfer', child: Text('E-Transfer')),
                     DropdownMenuItem(value: 'Cash', child: Text('Cash')),
                     DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
-                    DropdownMenuItem(value: 'Debit / Credit', child: Text('Debit / Credit')),
+                    DropdownMenuItem(
+                        value: 'Debit / Credit', child: Text('Debit / Credit')),
                     DropdownMenuItem(value: 'Other', child: Text('Other')),
                   ],
                   onChanged: (v) => method = v ?? method,
                 ),
                 const SizedBox(height: 12),
-                TextField(controller: reference, decoration: const InputDecoration(labelText: 'Reference / Receipt No.')),
+                TextField(
+                    controller: reference,
+                    decoration:
+                        const InputDecoration(labelText: 'Reference / Receipt No.')),
                 const SizedBox(height: 12),
-                TextField(controller: notes, maxLines: 2, decoration: const InputDecoration(labelText: 'Notes')),
+                TextField(
+                    controller: notes,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Notes')),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Record')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Record')),
           ],
         ),
       ),
@@ -157,11 +198,16 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     await load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(booking?.status == 'confirmed' ? 'Payment recorded. Booking is CONFIRMED.' : 'Payment recorded.')),
+      SnackBar(
+        content: Text(booking?.status == 'confirmed'
+            ? 'Payment recorded. Booking is CONFIRMED.'
+            : 'Payment recorded.'),
+      ),
     );
   }
 
   Future<void> printPaymentReceipt(PaymentRecord payment) async {
+    if (!canPrintFinancialDocuments) return;
     final b = booking!;
     final s = settings!;
     try {
@@ -187,6 +233,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   }
 
   Future<void> signContract() async {
+    if (!canManageBooking) return;
     final b = booking!;
     final boundaryKey = GlobalKey();
     final strokes = <List<Offset>>[];
@@ -221,7 +268,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Please review the contract terms, then sign inside the box using your finger or stylus.'),
+                    const Text(
+                        'Please review the contract terms, then sign inside the box using your finger or stylus.'),
                     const SizedBox(height: 14),
                     RepaintBoundary(
                       key: boundaryKey,
@@ -267,9 +315,16 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => setModal(strokes.clear), child: const Text('Clear')),
-                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-                FilledButton.icon(onPressed: saveSignature, icon: const Icon(Icons.check), label: const Text('Save Signature')),
+                TextButton(
+                    onPressed: () => setModal(strokes.clear),
+                    child: const Text('Clear')),
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel')),
+                FilledButton.icon(
+                    onPressed: saveSignature,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Save Signature')),
               ],
             );
           },
@@ -283,17 +338,23 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     await load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Client signature saved. The signed contract is ready to print.')),
+      const SnackBar(
+          content: Text(
+              'Client signature saved. The signed contract is ready to print.')),
     );
   }
 
   Future<void> printContract() async {
+    if (!canManageBooking) return;
     final b = booking!;
     final s = settings!;
     try {
-      final managerSignature = await widget.repository.loadManagerSignature(s.organization.managerSignaturePath);
-      final logo = await widget.repository.loadOrganizationLogo(s.organization.organizationLogoPath);
-      final clientSignature = await widget.repository.loadClientSignature(b.clientSignaturePath);
+      final managerSignature = await widget.repository
+          .loadManagerSignature(s.organization.managerSignaturePath);
+      final logo = await widget.repository
+          .loadOrganizationLogo(s.organization.organizationLogoPath);
+      final clientSignature = await widget.repository
+          .loadClientSignature(b.clientSignaturePath);
       final bytes = await ContractService().buildContract(
         booking: b,
         settings: s,
@@ -313,15 +374,27 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     }
   }
 
+  Future<void> openDocuments() async {
+    final b = booking;
+    if (b == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => BookingDocumentsPage(booking: b)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (busy && booking == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final b = booking;
-    if (b == null) return const Scaffold(body: Center(child: Text('Booking not found.')));
+    if (b == null) {
+      return const Scaffold(body: Center(child: Text('Booking not found.')));
+    }
 
-    final depositDue = (b.requiredBookingDeposit - b.bookingDepositPaid).clamp(0.0, double.infinity).toDouble();
+    final depositDue = (b.requiredBookingDeposit - b.bookingDepositPaid)
+        .clamp(0.0, double.infinity)
+        .toDouble();
     final damageReceived = b.payments
         .where((p) => p.paymentType == 'damage_deposit')
         .fold<double>(0, (total, p) => total + p.amount);
@@ -346,18 +419,35 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   runSpacing: 10,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    FilledButton.icon(
-                      onPressed: busy ? null : signContract,
-                      icon: const Icon(Icons.draw_outlined),
-                      label: Text(b.clientSignaturePath == null ? 'Sign Contract on Tablet' : 'Replace Client Signature'),
+                    OutlinedButton.icon(
+                      onPressed: openDocuments,
+                      icon: const Icon(Icons.folder_outlined),
+                      label: const Text('Document Centre'),
                     ),
-                    FilledButton.tonalIcon(
-                      onPressed: busy ? null : printContract,
-                      icon: const Icon(Icons.print_outlined),
-                      label: Text(b.clientSignaturePath == null ? 'Print Contract for Signature' : 'Print Signed Contract'),
-                    ),
+                    if (canManageBooking) ...[
+                      FilledButton.icon(
+                        onPressed: busy ? null : signContract,
+                        icon: const Icon(Icons.draw_outlined),
+                        label: Text(b.clientSignaturePath == null
+                            ? 'Sign Contract on Tablet'
+                            : 'Replace Client Signature'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: busy ? null : printContract,
+                        icon: const Icon(Icons.print_outlined),
+                        label: Text(b.clientSignaturePath == null
+                            ? 'Print Contract for Signature'
+                            : 'Print Signed Contract'),
+                      ),
+                    ],
                     if (b.clientSignaturePath != null)
-                      const Chip(avatar: Icon(Icons.verified_outlined, size: 17), label: Text('CLIENT SIGNED')),
+                      const Chip(
+                          avatar: Icon(Icons.verified_outlined, size: 17),
+                          label: Text('CLIENT SIGNED')),
+                    Chip(
+                      avatar: const Icon(Icons.shield_outlined, size: 17),
+                      label: Text(_roleLabel(role)),
+                    ),
                   ],
                 ),
               ),
@@ -387,23 +477,39 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                       runSpacing: 10,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text('${b.eventDetails} • ${b.hallSpaceName}', style: Theme.of(context).textTheme.titleLarge),
-                        Chip(label: Text(b.status.replaceAll('_', ' ').toUpperCase())),
+                        Text('${b.eventDetails} • ${b.hallSpaceName}',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        Chip(
+                            label: Text(b.status
+                                .replaceAll('_', ' ')
+                                .toUpperCase())),
+                        if (b.isRecurring)
+                          Chip(
+                            avatar: const Icon(Icons.repeat_outlined, size: 17),
+                            label: Text(
+                              '${b.seriesRule == 'monthly' ? 'MONTHLY' : 'WEEKLY'} ${b.seriesIndex ?? '?'} / ${b.seriesCount ?? '?'}',
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text('Event: ${date(b.eventDate)}  ${time(b.eventStart)} - ${time(b.eventEnd)}'),
+                    Text(
+                        'Event: ${date(b.eventDate)}  ${time(b.eventStart)} - ${time(b.eventEnd)}'),
                     Text('Hall access: ${dateTime(b.accessStart)}'),
                     Text('Vacate by: ${dateTime(b.vacateEnd)}'),
                     Text('Phone: ${b.phone}   Email: ${b.email}'),
                     if (b.holdExpiresAt != null && b.isHold)
-                      Text('Hold expires: ${dateTime(b.holdExpiresAt!.toLocal())}'),
-                    if (b.clientSignedAt != null) Text('Client signed: ${dateTime(b.clientSignedAt!)}'),
+                      Text(
+                          'Hold expires: ${dateTime(b.holdExpiresAt!.toLocal())}'),
+                    if (b.clientSignedAt != null)
+                      Text('Client signed: ${dateTime(b.clientSignedAt!)}'),
                   ],
                 ),
               ),
             ),
-            if (!b.isHold && b.status != 'cancelled') ...[
+            if (canManageBooking &&
+                !b.isHold &&
+                b.status != 'cancelled') ...[
               const SizedBox(height: 16),
               DamageInspectionCard(
                 booking: b,
@@ -420,21 +526,27 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.history_outlined, color: Theme.of(context).colorScheme.primary),
+                        Icon(Icons.history_outlined,
+                            color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 8),
                         Text(
                           'Booking File / Timeline',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
-                    const Text('A running history of changes, signatures, payments, inspections, and status updates for this reservation.'),
+                    const Text(
+                        'A running history of changes, signatures, payments, inspections, and status updates for this reservation.'),
                     const SizedBox(height: 14),
                     if (auditEvents.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 18),
-                        child: Text('No timeline entries yet. New activity will appear here automatically.'),
+                        child: Text(
+                            'No timeline entries yet. New activity will appear here automatically.'),
                       )
                     else
                       ...auditEvents.map(_timelineEvent),
@@ -451,14 +563,25 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   children: [
                     Row(
                       children: [
-                        Text('Payments', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                        Text('Payments',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700)),
                         const Spacer(),
-                        FilledButton.icon(onPressed: busy ? null : recordPayment, icon: const Icon(Icons.add_card), label: const Text('Record Payment')),
+                        if (canRecordPayments)
+                          FilledButton.icon(
+                              onPressed: busy ? null : recordPayment,
+                              icon: const Icon(Icons.add_card),
+                              label: const Text('Record Payment')),
                       ],
                     ),
                     const SizedBox(height: 12),
                     if (b.payments.isEmpty)
-                      const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No payments recorded yet.')))
+                      const Padding(
+                          padding: EdgeInsets.all(24),
+                          child:
+                              Center(child: Text('No payments recorded yet.')))
                     else
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
@@ -471,20 +594,27 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                             DataColumn(label: Text('AMOUNT')),
                             DataColumn(label: Text('RECEIPT')),
                           ],
-                          rows: b.payments.map((p) => DataRow(cells: [
-                            DataCell(Text(date(p.paymentDate))),
-                            DataCell(Text(p.paymentType.replaceAll('_', ' '))),
-                            DataCell(Text(p.paymentMethod)),
-                            DataCell(Text(p.paymentReference)),
-                            DataCell(Text(money(p.amount))),
-                            DataCell(
-                              OutlinedButton.icon(
-                                onPressed: () => printPaymentReceipt(p),
-                                icon: const Icon(Icons.receipt_long_outlined, size: 17),
-                                label: const Text('Print Receipt'),
-                              ),
-                            ),
-                          ])).toList(),
+                          rows: b.payments
+                              .map((p) => DataRow(cells: [
+                                    DataCell(Text(date(p.paymentDate))),
+                                    DataCell(Text(
+                                        p.paymentType.replaceAll('_', ' '))),
+                                    DataCell(Text(p.paymentMethod)),
+                                    DataCell(Text(p.paymentReference)),
+                                    DataCell(Text(money(p.amount))),
+                                    DataCell(canPrintFinancialDocuments
+                                        ? OutlinedButton.icon(
+                                            onPressed: () =>
+                                                printPaymentReceipt(p),
+                                            icon: const Icon(
+                                                Icons.receipt_long_outlined,
+                                                size: 17),
+                                            label:
+                                                const Text('Print Receipt'),
+                                          )
+                                        : const Text('View only')),
+                                  ]))
+                              .toList(),
                         ),
                       ),
                   ],
@@ -521,18 +651,23 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
               color: Theme.of(context).colorScheme.primaryContainer,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+            child: Icon(icon,
+                size: 18, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(event.summary, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(event.summary,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(
                   dateTime(event.createdAt.toLocal()),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.black54),
                 ),
               ],
             ),
@@ -552,12 +687,22 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
               children: [
                 Text(label),
                 const SizedBox(height: 6),
-                Text(money(value), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                Text(money(value),
+                    style: const TextStyle(
+                        fontSize: 21, fontWeight: FontWeight.w800)),
               ],
             ),
           ),
         ),
       );
+
+  String _roleLabel(String value) => switch (value) {
+        'admin' => 'Administrator',
+        'manager' => 'Manager',
+        'booking_officer' => 'Booking Officer',
+        'finance' => 'Finance',
+        _ => 'Viewer',
+      };
 
   String _contractFileName(Booking b) {
     final rawName = b.clientName.trim().isEmpty
@@ -587,11 +732,13 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
       .trim();
 
   String money(double v) => '\$${v.toStringAsFixed(2)}';
-  String date(DateTime d) => '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+  String date(DateTime d) =>
+      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
   String time(DateTime d) {
     final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
     return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
   }
+
   String dateTime(DateTime d) => '${date(d)} ${time(d)}';
 }
 
