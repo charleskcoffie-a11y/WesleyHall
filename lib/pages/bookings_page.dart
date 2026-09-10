@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wesley_models.dart';
 import 'booking_detail_page.dart';
 import 'edit_booking_page.dart';
+import 'scan_application_page.dart';
 import '../services/blank_application_service.dart';
 import '../services/contract_service.dart';
 import '../services/paper_application_service.dart';
@@ -30,6 +31,17 @@ class _BookingsPageState extends State<BookingsPage> {
   void initState() {
     super.initState();
     _future = widget.repository.listBookings();
+  }
+
+  Future<void> _scanApplication() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ScanApplicationPage(repository: widget.repository),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _future = widget.repository.listBookings());
+    }
   }
 
   Future<void> _printBlankApplication() async {
@@ -151,11 +163,22 @@ class _BookingsPageState extends State<BookingsPage> {
           PageHeader(
             title: 'Bookings',
             subtitle:
-                'Search bookings, review hall access times, and print agreements for signature.',
-            trailing: OutlinedButton.icon(
-              onPressed: _printBlankApplication,
-              icon: const Icon(Icons.description_outlined),
-              label: const Text('Print Blank Application'),
+                'Search bookings, scan paper applications, and print agreements for signature.',
+            trailing: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _scanApplication,
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  label: const Text('Scan Application'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _printBlankApplication,
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('Print Blank Application'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
