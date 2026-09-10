@@ -16,6 +16,7 @@ class PaperApplicationService {
         ? 'jpg'
         : extension.toLowerCase();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = 'Filled Wesley Hall Application';
     final path =
         'contracts/$bookingId/paper-application-$timestamp.$normalized';
 
@@ -38,6 +39,10 @@ class PaperApplicationService {
     await client.from('wesley_contract_records').insert({
       'booking_id': bookingId,
       'storage_path': path,
+      'document_type': 'paper_application',
+      'display_name': '$fileName.$normalized',
+      'mime_type': contentType,
+      'file_size': bytes.length,
     });
 
     return path;
