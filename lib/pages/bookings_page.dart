@@ -43,7 +43,7 @@ class _BookingsPageState extends State<BookingsPage> {
         organizationLogo: logo,
       );
       await Printing.layoutPdf(
-        name: '${booking.referenceNumber} - Wesley Hall Agreement',
+        name: _contractFileName(booking),
         onLayout: (_) async => bytes,
       );
     } catch (e) {
@@ -107,6 +107,8 @@ class _BookingsPageState extends State<BookingsPage> {
                     DropdownMenuItem(
                         value: 'confirmed', child: Text('Confirmed')),
                     DropdownMenuItem(
+                        value: 'reserved', child: Text('Church Use')),
+                    DropdownMenuItem(
                         value: 'completed', child: Text('Completed')),
                     DropdownMenuItem(
                         value: 'cancelled', child: Text('Cancelled')),
@@ -147,7 +149,8 @@ class _BookingsPageState extends State<BookingsPage> {
                     if (_search.isEmpty) return true;
                     return b.clientName.toLowerCase().contains(_search) ||
                         b.eventDetails.toLowerCase().contains(_search) ||
-                        b.referenceNumber.toLowerCase().contains(_search);
+                        b.referenceNumber.toLowerCase().contains(_search) ||
+                        b.churchGroup.toLowerCase().contains(_search);
                   }).toList();
 
                   if (rows.isEmpty) {
@@ -175,6 +178,9 @@ class _BookingsPageState extends State<BookingsPage> {
                             DataColumn(label: Text('ACTIONS')),
                           ],
                           rows: rows.map((b) {
+                            final displayName = b.isChurchUse && b.churchGroup.isNotEmpty
+                                ? b.churchGroup
+                                : b.clientName;
                             return DataRow(cells: [
                               DataCell(
                                 Text(
@@ -194,7 +200,7 @@ class _BookingsPageState extends State<BookingsPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        b.clientName,
+                                        displayName,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
@@ -278,6 +284,17 @@ class _BookingsPageState extends State<BookingsPage> {
         ],
       ),
     );
+  }
+
+  String _contractFileName(Booking booking) {
+    final rawName = booking.clientName.trim().isEmpty
+        ? (booking.churchGroup.trim().isEmpty ? 'Client' : booking.churchGroup)
+        : booking.clientName;
+    final safeName = rawName
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return '${booking.referenceNumber} - $safeName';
   }
 
   String _date(DateTime d) =>
