@@ -1,11 +1,14 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/wesley_models.dart';
 import 'booking_detail_page.dart';
 import 'edit_booking_page.dart';
 import '../services/blank_application_service.dart';
 import '../services/contract_service.dart';
+import '../services/paper_application_service.dart';
 import '../services/wesley_repository.dart';
 import '../widgets/page_header.dart';
 
@@ -47,6 +50,39 @@ class _BookingsPageState extends State<BookingsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unable to print blank application: $e')),
+      );
+    }
+  }
+
+  Future<void> _uploadPaperApplication(Booking booking) async {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      var extension = (file.extension ?? 'pdf').toLowerCase();
+      if (extension == 'jpeg') extension = 'jpg';
+
+      await PaperApplicationService(Supabase.instance.client).uploadForBooking(
+        bookingId: booking.id,
+        bytes: bytes,
+        extension: extension,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Filled application attached to ${booking.referenceNumber}.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to upload application: $e')),
       );
     }
   }
@@ -311,6 +347,14 @@ class _BookingsPageState extends State<BookingsPage> {
                                       icon: const Icon(Icons.edit_outlined,
                                           size: 16),
                                       label: const Text('Edit'),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _uploadPaperApplication(b),
+                                      icon: const Icon(Icons.upload_file_outlined,
+                                          size: 16),
+                                      label: const Text('Upload Form'),
                                     ),
                                     const SizedBox(width: 6),
                                     FilledButton.tonalIcon(
