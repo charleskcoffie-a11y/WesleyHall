@@ -54,11 +54,20 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
 
 ## Phase 3 - Communication & Governance
 
-- [ ] Communication Centre
-  - Send confirmation.
-  - Send contract.
-  - Send balance reminder.
-  - Send event reminder.
+- [x] Communication Centre
+  - Dedicated Communication Centre in the main navigation.
+  - Search/filter active bookings, upcoming events and outstanding balances.
+  - Send booking confirmations.
+  - Send signed/current contract PDF attachments.
+  - Send balance reminders.
+  - Send event reminders.
+  - Send payment receipt PDF attachments.
+  - Create custom messages.
+  - Preview/edit recipient, subject and message before sending.
+  - Record sent/failed communication history per booking.
+  - Record successful emails in the booking audit timeline.
+  - Enforce sending permissions for Admin, Manager, Booking Officer and Finance.
+  - Microsoft 365 delivery is handled server-side through Microsoft Graph; production sending requires the Graph credentials and sender mailbox to be added to Supabase Edge Function secrets.
 - [x] Staff Roles & Permissions
   - Administrator: full access including staff management.
   - Manager: bookings, finance, settings, documents and inspections.
@@ -68,7 +77,7 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
   - Enforce permissions in both Flutter navigation and Supabase RLS.
   - Admin can create staff users, change roles/status and reset passwords securely through a server-side Edge Function.
 - [x] Audit Trail
-  - Record booking creation, edits, status changes, signatures, payments, and inspections.
+  - Record booking creation, edits, status changes, signatures, payments, inspections and sent communications.
   - Extend to settings changes as governance work is completed.
 
 ## Phase 4 - Document & Tablet Workflow
@@ -102,6 +111,6 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
 6. Staff Roles & Permissions - COMPLETE
 7. Document Centre - COMPLETE
 8. Duplicate / Copy Reservation - COMPLETE
-9. Communication Centre - NEXT
-10. Tablet Reception Mode
+9. Communication Centre - COMPLETE (Microsoft 365 credentials still need production configuration)
+10. Tablet Reception Mode - NEXT
 11. Go-live cleanup / backup tools
