@@ -33,6 +33,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
   SettingsBundle? settings;
   String? hallId;
   String reservationType = 'external_rental';
+  String recurrence = 'none';
+  int recurrenceCount = 4;
   DateTime eventDate = DateTime.now().add(const Duration(days: 7));
   TimeOfDay start = const TimeOfDay(hour: 17, minute: 0);
   TimeOfDay end = const TimeOfDay(hour: 23, minute: 0);
@@ -82,6 +84,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
     setState(() {
       reservationType = type;
       selected.clear();
+      recurrence = 'none';
+      recurrenceCount = 4;
       if (isChurchUse) {
         hallCharge.text = '0.00';
       } else if (hallId != null) {
@@ -93,18 +97,18 @@ class _NewBookingPageState extends State<NewBookingPage> {
     });
   }
 
-  DateTime combine(TimeOfDay value, {bool finish = false}) {
+  DateTime combineForDate(DateTime date, TimeOfDay value, {bool finish = false}) {
     var result = DateTime(
-      eventDate.year,
-      eventDate.month,
-      eventDate.day,
+      date.year,
+      date.month,
+      date.day,
       value.hour,
       value.minute,
     );
     final startValue = DateTime(
-      eventDate.year,
-      eventDate.month,
-      eventDate.day,
+      date.year,
+      date.month,
+      date.day,
       start.hour,
       start.minute,
     );
@@ -113,6 +117,9 @@ class _NewBookingPageState extends State<NewBookingPage> {
     }
     return result;
   }
+
+  DateTime combine(TimeOfDay value, {bool finish = false}) =>
+      combineForDate(eventDate, value, finish: finish);
 
   DateTime get eventStart => combine(start);
   DateTime get eventEnd => combine(end, finish: true);
@@ -157,15 +164,70 @@ class _NewBookingPageState extends State<NewBookingPage> {
     if (mounted) setState(() => available = !conflict);
   }
 
+  List<DateTime> _occurrenceDates() {
+    if (!isChurchUse || recurrence == 'none') return [eventDate];
+    return List.generate(recurrenceCount, (index) {
+      if (recurrence == 'weekly') {
+        return eventDate.add(Duration(days: 7 * index));
+      }
+      return _addMonthsKeepingDay(eventDate, index);
+    });
+  }
+
+  DateTime _addMonthsKeepingDay(DateTime source, int months) {
+    final targetMonth = source.month + months;
+    final first = DateTime(source.year, targetMonth, 1);
+    final lastDay = DateTime(first.year, first.month + 1, 0).day;
+    final day = source.day > lastDay ? lastDay : source.day;
+    return DateTime(first.year, first.month, day);
+  }
+
+  Future<List<DateTime>> _conflictingOccurrences(List<DateTime> dates) async {
+    final s = settings!;
+    final conflicts = <DateTime>[];
+    for (final date in dates) {
+      final startAt = combineForDate(date, start);
+      final endAt = combineForDate(date, end, finish: true);
+      final accessAt = startAt.subtract(
+        Duration(minutes: s.rules.setupMinutesBefore),
+      );
+      final vacateAt = endAt.add(
+        Duration(minutes: s.rules.cleanupMinutesAfter),
+      );
+      final conflict = await widget.repository.hasBookingConflict(
+        hallSpaceId: hallId!,
+        accessStart: accessAt,
+        vacateEnd: vacateAt,
+      );
+      if (conflict) conflicts.add(date);
+    }
+    return conflicts;
+  }
+
   Future<void> save() async {
     if (!formKey.currentState!.validate() || settings == null || hallId == null) {
       return;
     }
-    await checkAvailability();
-    if (available != true) return;
 
+    final dates = _occurrenceDates();
     setState(() => saving = true);
+
     try {
+      final conflicts = await _conflictingOccurrences(dates);
+      if (conflicts.isNotEmpty) {
+        if (!mounted) return;
+        final preview = conflicts.take(3).map(_date).join(', ');
+        final extra = conflicts.length > 3 ? ' and ${conflicts.length - 3} more' : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot save the series. Hall conflict on $preview$extra. Nothing was saved.',
+            ),
+          ),
+        );
+        return;
+      }
+
       final s = settings!;
       final hall = s.spaces.firstWhere((e) => e.id == hallId);
       final extras = isChurchUse
@@ -180,42 +242,59 @@ class _NewBookingPageState extends State<NewBookingPage> {
                   ))
               .toList();
 
-      final booking = Booking(
-        id: 'temp-${DateTime.now().microsecondsSinceEpoch}',
-        referenceNumber: 'WH-${eventDate.year}-PENDING',
-        clientName: client.text.trim(),
-        clientAddress: isChurchUse ? '' : address.text.trim(),
-        phone: phone.text.trim(),
-        email: email.text.trim(),
-        eventDate: eventDate,
-        eventStart: eventStart,
-        eventEnd: eventEnd,
-        accessStart: accessStart,
-        vacateEnd: vacateEnd,
-        eventDetails: details.text.trim(),
-        guestCount: int.tryParse(guests.text.trim()) ?? 0,
-        hallSpaceId: hall.id,
-        hallSpaceName: hall.name,
-        hallCharge: isChurchUse ? 0.0 : hallValue,
-        extraTimeCharge: isChurchUse ? 0.0 : extraTime,
-        status: isChurchUse ? 'reserved' : 'awaiting_deposit',
-        extras: extras,
-        reservationType: reservationType,
-        churchGroup: isChurchUse ? churchGroup.text.trim() : '',
-        bookingDepositPercent:
-            isChurchUse ? 0.0 : s.rules.bookingDepositPercent,
-        damageDepositRequired:
-            isChurchUse ? 0.0 : s.rules.damageDepositAmount,
-        notes: notes.text.trim(),
-      );
+      for (var index = 0; index < dates.length; index++) {
+        final date = dates[index];
+        final startAt = combineForDate(date, start);
+        final endAt = combineForDate(date, end, finish: true);
+        final accessAt = startAt.subtract(
+          Duration(minutes: s.rules.setupMinutesBefore),
+        );
+        final vacateAt = endAt.add(
+          Duration(minutes: s.rules.cleanupMinutesAfter),
+        );
 
-      await widget.repository.createBooking(booking);
+        final booking = Booking(
+          id: 'temp-${DateTime.now().microsecondsSinceEpoch}-$index',
+          referenceNumber: 'WH-${date.year}-PENDING',
+          clientName: client.text.trim(),
+          clientAddress: isChurchUse ? '' : address.text.trim(),
+          phone: phone.text.trim(),
+          email: email.text.trim(),
+          eventDate: date,
+          eventStart: startAt,
+          eventEnd: endAt,
+          accessStart: accessAt,
+          vacateEnd: vacateAt,
+          eventDetails: details.text.trim(),
+          guestCount: int.tryParse(guests.text.trim()) ?? 0,
+          hallSpaceId: hall.id,
+          hallSpaceName: hall.name,
+          hallCharge: isChurchUse ? 0.0 : hallValue,
+          extraTimeCharge: isChurchUse ? 0.0 : extraTime,
+          status: isChurchUse ? 'reserved' : 'awaiting_deposit',
+          extras: extras,
+          reservationType: reservationType,
+          churchGroup: isChurchUse ? churchGroup.text.trim() : '',
+          bookingDepositPercent:
+              isChurchUse ? 0.0 : s.rules.bookingDepositPercent,
+          damageDepositRequired:
+              isChurchUse ? 0.0 : s.rules.damageDepositAmount,
+          notes: notes.text.trim(),
+        );
+
+        await widget.repository.createBooking(booking);
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isChurchUse
-              ? 'Church use reservation saved. No payment required.'
-              : 'Rental booking saved. Status: Awaiting Deposit.'),
+          content: Text(
+            isChurchUse && dates.length > 1
+                ? '${dates.length} recurring church reservations saved.'
+                : isChurchUse
+                    ? 'Church use reservation saved. No payment required.'
+                    : 'Rental booking saved. Status: Awaiting Deposit.',
+          ),
         ),
       );
       widget.onSaved();
@@ -239,6 +318,7 @@ class _NewBookingPageState extends State<NewBookingPage> {
     final double deposit = isChurchUse
         ? 0.0
         : total * s.rules.bookingDepositPercent / 100.0;
+    final occurrences = _occurrenceDates();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(30, 28, 30, 26),
@@ -397,6 +477,69 @@ class _NewBookingPageState extends State<NewBookingPage> {
                               ),
                             ),
                           ]),
+                          if (isChurchUse) ...[
+                            const SizedBox(height: 14),
+                            _section('Repeat Church Activity', [
+                              const Text(
+                                'Create a series of church-use reservations. Every date is checked for hall conflicts before the series is saved.',
+                              ),
+                              const SizedBox(height: 12),
+                              SegmentedButton<String>(
+                                segments: const [
+                                  ButtonSegment(
+                                    value: 'none',
+                                    icon: Icon(Icons.event_outlined),
+                                    label: Text('One Time'),
+                                  ),
+                                  ButtonSegment(
+                                    value: 'weekly',
+                                    icon: Icon(Icons.view_week_outlined),
+                                    label: Text('Weekly'),
+                                  ),
+                                  ButtonSegment(
+                                    value: 'monthly',
+                                    icon: Icon(Icons.calendar_view_month_outlined),
+                                    label: Text('Monthly'),
+                                  ),
+                                ],
+                                selected: {recurrence},
+                                onSelectionChanged: (value) => setState(() {
+                                  recurrence = value.first;
+                                }),
+                              ),
+                              if (recurrence != 'none') ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    const Text('Number of occurrences:'),
+                                    const SizedBox(width: 12),
+                                    DropdownButton<int>(
+                                      value: recurrenceCount,
+                                      items: [2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 26, 52]
+                                          .map((value) => DropdownMenuItem(
+                                                value: value,
+                                                child: Text('$value'),
+                                              ))
+                                          .toList(),
+                                      onChanged: (value) {
+                                        if (value != null) {
+                                          setState(() => recurrenceCount = value);
+                                        }
+                                      },
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        '${occurrences.length} reservations from ${_date(occurrences.first)} to ${_date(occurrences.last)}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ]),
+                          ],
                           if (!isChurchUse) ...[
                             const SizedBox(height: 14),
                             _section(
@@ -476,9 +619,11 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                     color: const Color(0xFFEAF3FF),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Text(
-                                    'NO PAYMENT REQUIRED\nThe hall is reserved and protected from double-booking.',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  child: Text(
+                                    recurrence == 'none'
+                                        ? 'NO PAYMENT REQUIRED\nThe hall is reserved and protected from double-booking.'
+                                        : 'NO PAYMENT REQUIRED\n${occurrences.length} ${recurrence.toUpperCase()} reservations will be created after all dates pass conflict checking.',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -513,9 +658,13 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                 icon: Icon(isChurchUse
                                     ? Icons.event_available_outlined
                                     : Icons.save_outlined),
-                                label: Text(isChurchUse
-                                    ? 'Reserve for Church Use'
-                                    : 'Save Rental Booking'),
+                                label: Text(
+                                  isChurchUse && recurrence != 'none'
+                                      ? 'Reserve ${occurrences.length} Church Dates'
+                                      : isChurchUse
+                                          ? 'Reserve for Church Use'
+                                          : 'Save Rental Booking',
+                                ),
                               ),
                             ],
                           ),
