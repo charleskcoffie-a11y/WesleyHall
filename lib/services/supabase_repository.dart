@@ -196,10 +196,21 @@ class SupabaseWesleyRepository implements WesleyRepository {
           bytes,
           fileOptions: FileOptions(
             upsert: true,
-            contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+            contentType: _imageContentType(extension),
           ),
         );
     return path;
+  }
+
+  String _imageContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
   }
 
   @override
@@ -247,13 +258,41 @@ class SupabaseWesleyRepository implements WesleyRepository {
   }
 
   @override
+  Future<String> uploadInspectionPhoto(
+    String bookingId,
+    Uint8List bytes,
+    String extension,
+  ) async {
+    final safeExtension =
+        extension.toLowerCase() == 'jpeg' ? 'jpg' : extension.toLowerCase();
+    final path =
+        'contracts/$bookingId/inspection/inspection-${DateTime.now().microsecondsSinceEpoch}.$safeExtension';
+    await client.storage.from('wesley-hall-private').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: false,
+            contentType: _imageContentType(safeExtension),
+          ),
+        );
+    return path;
+  }
+
+  @override
+  Future<Uint8List?> loadInspectionPhoto(String path) async {
+    if (path.isEmpty) return null;
+    return client.storage.from('wesley-hall-private').download(path);
+  }
+
+  @override
   Future<List<Booking>> listBookings() async {
     final rows = await client
         .from('wesley_bookings')
         .select(
           '*, hall:wesley_hall_spaces(name), '
           'extras:wesley_booking_services(*, service:wesley_services(name)), '
-          'payments:wesley_payments(*)',
+          'payments:wesley_payments(*), '
+          'inspection:wesley_booking_inspections(*)',
         )
         .order('event_start');
 
@@ -261,6 +300,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
       final hall = row['hall'] as Map<String, dynamic>?;
       final extrasRaw = row['extras'] as List<dynamic>? ?? [];
       final paymentsRaw = row['payments'] as List<dynamic>? ?? [];
+      final inspection = _inspectionFromRelation(row['inspection']);
       return Booking(
         id: row['id'].toString(),
         referenceNumber: row['reference_number'] as String,
@@ -296,6 +336,7 @@ class SupabaseWesleyRepository implements WesleyRepository {
         holdExpiresAt: row['hold_expires_at'] == null
             ? null
             : DateTime.tryParse(row['hold_expires_at'].toString()),
+        inspection: inspection,
         extras: extrasRaw.map<BookingExtra>((raw) {
           final item = raw as Map<String, dynamic>;
           final service = item['service'] as Map<String, dynamic>?;
@@ -322,6 +363,38 @@ class SupabaseWesleyRepository implements WesleyRepository {
         }).toList(),
       );
     }).toList();
+  }
+
+  DamageInspection? _inspectionFromRelation(dynamic raw) {
+    Map<String, dynamic>? item;
+    if (raw is Map<String, dynamic>) {
+      item = raw;
+    } else if (raw is List && raw.isNotEmpty && raw.first is Map) {
+      item = Map<String, dynamic>.from(raw.first as Map);
+    }
+    if (item == null) return null;
+    return _inspectionFromMap(item);
+  }
+
+  DamageInspection _inspectionFromMap(Map<String, dynamic> item) {
+    final photoPaths = (item['photo_paths'] as List<dynamic>? ?? const [])
+        .map((e) => e.toString())
+        .toList();
+    return DamageInspection(
+      id: item['id'].toString(),
+      bookingId: item['booking_id'].toString(),
+      outcome: item['outcome'] as String? ?? 'no_damage',
+      notes: item['notes'] as String? ?? '',
+      damageDeduction: (item['damage_deduction'] as num?)?.toDouble() ?? 0,
+      refundAmount: (item['refund_amount'] as num?)?.toDouble() ?? 0,
+      photoPaths: photoPaths,
+      inspectedAt:
+          DateTime.tryParse(item['inspected_at']?.toString() ?? '') ??
+              DateTime.now(),
+      completedAt: item['completed_at'] == null
+          ? null
+          : DateTime.tryParse(item['completed_at'].toString()),
+    );
   }
 
   @override
@@ -416,6 +489,80 @@ class SupabaseWesleyRepository implements WesleyRepository {
                 .toList(),
           );
     }
+  }
+
+  @override
+  Future<DamageInspection> saveDamageInspection(
+    DamageInspection inspection,
+  ) async {
+    final saved = await client
+        .from('wesley_booking_inspections')
+        .upsert(
+          {
+            'booking_id': inspection.bookingId,
+            'outcome': inspection.outcome,
+            'notes': inspection.notes,
+            'damage_deduction': inspection.damageDeduction,
+            'refund_amount': inspection.refundAmount,
+            'photo_paths': inspection.photoPaths,
+            'inspected_at': inspection.inspectedAt.toIso8601String(),
+            'completed_at': inspection.completedAt?.toIso8601String(),
+          },
+          onConflict: 'booking_id',
+        )
+        .select()
+        .single();
+    return _inspectionFromMap(saved);
+  }
+
+  @override
+  Future<void> completeDamageInspection({
+    required DamageInspection inspection,
+    required double refundAmount,
+  }) async {
+    final completedAt = DateTime.now();
+    await saveDamageInspection(
+      DamageInspection(
+        id: inspection.id,
+        bookingId: inspection.bookingId,
+        outcome: inspection.outcome,
+        notes: inspection.notes,
+        damageDeduction: inspection.damageDeduction,
+        refundAmount: refundAmount,
+        photoPaths: inspection.photoPaths,
+        inspectedAt: inspection.inspectedAt,
+        completedAt: completedAt,
+      ),
+    );
+
+    if (refundAmount > 0) {
+      final reference = 'INSPECTION-REFUND-${inspection.bookingId}';
+      final existing = await client
+          .from('wesley_payments')
+          .select('id')
+          .eq('booking_id', inspection.bookingId)
+          .eq('payment_type', 'damage_refund')
+          .eq('payment_reference', reference)
+          .limit(1);
+      if (existing.isEmpty) {
+        await client.from('wesley_payments').insert({
+          'booking_id': inspection.bookingId,
+          'payment_type': 'damage_refund',
+          'amount': refundAmount,
+          'payment_method': 'Damage Deposit Refund',
+          'payment_reference': reference,
+          'payment_date': completedAt.toIso8601String(),
+          'notes': inspection.damageDeduction > 0
+              ? 'Damage deposit refund after deduction of \$${inspection.damageDeduction.toStringAsFixed(2)}.'
+              : 'Damage deposit refunded after inspection.',
+        });
+      }
+    }
+
+    await client
+        .from('wesley_bookings')
+        .update({'status': 'completed', 'hold_expires_at': null})
+        .eq('id', inspection.bookingId);
   }
 
   @override
