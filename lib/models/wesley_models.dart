@@ -247,6 +247,10 @@ class Booking {
     this.clientSignedAt,
     this.holdExpiresAt,
     this.inspection,
+    this.seriesKey,
+    this.seriesRule,
+    this.seriesIndex,
+    this.seriesCount,
   });
 
   final String id;
@@ -278,11 +282,16 @@ class Booking {
   final DateTime? clientSignedAt;
   final DateTime? holdExpiresAt;
   final DamageInspection? inspection;
+  final String? seriesKey;
+  final String? seriesRule;
+  final int? seriesIndex;
+  final int? seriesCount;
 
   bool get isChurchUse => reservationType == 'church_use';
   bool get isHold => status == 'hold';
   bool get isExpiredHold =>
       isHold && holdExpiresAt != null && holdExpiresAt!.isBefore(DateTime.now());
+  bool get isRecurring => seriesKey != null && seriesKey!.isNotEmpty;
 
   double get extrasTotal => isChurchUse
       ? 0
@@ -330,6 +339,10 @@ class Booking {
     DateTime? clientSignedAt,
     DateTime? holdExpiresAt,
     DamageInspection? inspection,
+    String? seriesKey,
+    String? seriesRule,
+    int? seriesIndex,
+    int? seriesCount,
   }) {
     return Booking(
       id: id,
@@ -361,6 +374,10 @@ class Booking {
       clientSignedAt: clientSignedAt ?? this.clientSignedAt,
       holdExpiresAt: holdExpiresAt ?? this.holdExpiresAt,
       inspection: inspection ?? this.inspection,
+      seriesKey: seriesKey ?? this.seriesKey,
+      seriesRule: seriesRule ?? this.seriesRule,
+      seriesIndex: seriesIndex ?? this.seriesIndex,
+      seriesCount: seriesCount ?? this.seriesCount,
     );
   }
 }
