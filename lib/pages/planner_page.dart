@@ -134,12 +134,12 @@ class _PlannerPageState extends State<PlannerPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.calendar_month_outlined,
-                          color: _green, size: 20),
+                          color: _green, size: 21),
                       const SizedBox(width: 9),
                       Text(
                         _monthName(month),
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.w800,
                           color: _ink,
                         ),
@@ -160,8 +160,9 @@ class _PlannerPageState extends State<PlannerPage> {
                     final now = DateTime.now();
                     month = DateTime(now.year, now.month);
                   }),
-                  icon: const Icon(Icons.today_outlined, size: 18),
-                  label: const Text('Today'),
+                  icon: const Icon(Icons.today_outlined, size: 19),
+                  label: const Text('Today',
+                      style: TextStyle(fontSize: 13)),
                 ),
               ],
             );
@@ -229,7 +230,7 @@ class _PlannerPageState extends State<PlannerPage> {
               Text(
                 _monthName(month),
                 style: const TextStyle(
-                  fontSize: 17,
+                  fontSize: 19,
                   fontWeight: FontWeight.w800,
                   color: _ink,
                 ),
@@ -237,7 +238,7 @@ class _PlannerPageState extends State<PlannerPage> {
               const SizedBox(height: 2),
               Text(
                 '$total reservation${total == 1 ? '' : 's'} this month',
-                style: const TextStyle(fontSize: 12, color: _muted),
+                style: const TextStyle(fontSize: 13, color: _muted),
               ),
             ],
           ),
@@ -265,14 +266,14 @@ class _PlannerPageState extends State<PlannerPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: _green),
+          Icon(icon, size: 17, color: _green),
           const SizedBox(width: 6),
           Text(value,
               style: const TextStyle(
-                  fontWeight: FontWeight.w800, color: _ink, fontSize: 13)),
+                  fontWeight: FontWeight.w800, color: _ink, fontSize: 14)),
           const SizedBox(width: 4),
           Text(label,
-              style: const TextStyle(color: _muted, fontSize: 11)),
+              style: const TextStyle(color: _muted, fontSize: 12)),
         ],
       ),
     );
@@ -291,7 +292,7 @@ class _PlannerPageState extends State<PlannerPage> {
       labelStyle: TextStyle(
         color: selected ? _deepGreen : const Color(0xFF53645D),
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        fontSize: 12,
+        fontSize: 13,
       ),
       side: BorderSide(
         color: selected ? const Color(0xFF8ED3B3) : _line,
@@ -364,7 +365,7 @@ class _PlannerPageState extends State<PlannerPage> {
                             ? const Color(0xFF8A6D3B)
                             : const Color(0xFF64756E),
                         fontWeight: FontWeight.w800,
-                        fontSize: 11,
+                        fontSize: 12,
                         letterSpacing: .8,
                       ),
                     ),
@@ -462,8 +463,8 @@ class _PlannerPageState extends State<PlannerPage> {
           Row(
             children: [
               Container(
-                width: 27,
-                height: 27,
+                width: 29,
+                height: 29,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isToday ? _green : Colors.transparent,
@@ -478,7 +479,7 @@ class _PlannerPageState extends State<PlannerPage> {
                             ? _ink
                             : const Color(0xFFAAB6B0),
                     fontWeight: FontWeight.w800,
-                    fontSize: 12,
+                    fontSize: 14,
                   ),
                 ),
               ),
@@ -494,7 +495,7 @@ class _PlannerPageState extends State<PlannerPage> {
                   child: Text(
                     '${events.length}',
                     style: const TextStyle(
-                      fontSize: 9,
+                      fontSize: 10,
                       fontWeight: FontWeight.w800,
                       color: _green,
                     ),
@@ -517,7 +518,7 @@ class _PlannerPageState extends State<PlannerPage> {
                 child: Text(
                   '+${events.length - 2} more',
                   style: const TextStyle(
-                    fontSize: 9,
+                    fontSize: 10,
                     color: _muted,
                     fontWeight: FontWeight.w600,
                   ),
@@ -556,7 +557,7 @@ class _PlannerPageState extends State<PlannerPage> {
                   children: [
                     Row(
                       children: [
-                        Icon(_eventIcon(b), size: 11, color: colors.$2),
+                        Icon(_eventIcon(b), size: 12, color: colors.$2),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -564,7 +565,7 @@ class _PlannerPageState extends State<PlannerPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 8.5,
+                              fontSize: 10,
                               color: colors.$2,
                               fontWeight: FontWeight.w700,
                             ),
@@ -586,7 +587,7 @@ class _PlannerPageState extends State<PlannerPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                         color: colors.$2,
                       ),
@@ -596,7 +597,7 @@ class _PlannerPageState extends State<PlannerPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 8.5,
+                        fontSize: 10,
                         color: colors.$2.withValues(alpha: .82),
                         fontWeight: FontWeight.w500,
                       ),
@@ -707,7 +708,7 @@ class _LegendItem extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 10.5,
+            fontSize: 11.5,
             color: Color(0xFF60716A),
             fontWeight: FontWeight.w500,
           ),
