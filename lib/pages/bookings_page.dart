@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../models/wesley_models.dart';
+import 'booking_detail_page.dart';
+import 'edit_booking_page.dart';
+import '../services/blank_application_service.dart';
 import '../services/contract_service.dart';
 import '../services/wesley_repository.dart';
 import '../widgets/page_header.dart';
-import 'booking_detail_page.dart';
-import 'edit_booking_page.dart';
 
 class BookingsPage extends StatefulWidget {
   const BookingsPage({super.key, required this.repository});
@@ -28,7 +29,27 @@ class _BookingsPageState extends State<BookingsPage> {
     _future = widget.repository.listBookings();
   }
 
-  void _refresh() => setState(() => _future = widget.repository.listBookings());
+  Future<void> _printBlankApplication() async {
+    try {
+      final settings = await widget.repository.loadSettings();
+      final logo = await widget.repository.loadOrganizationLogo(
+        settings.organization.organizationLogoPath,
+      );
+      final bytes = await BlankApplicationService().build(
+        settings: settings,
+        organizationLogo: logo,
+      );
+      await Printing.layoutPdf(
+        name: 'Wesley Hall - Blank Rental Application',
+        onLayout: (_) async => bytes,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to print blank application: $e')),
+      );
+    }
+  }
 
   Future<void> _printContract(Booking booking) async {
     try {
@@ -67,7 +88,7 @@ class _BookingsPageState extends State<BookingsPage> {
       ),
     );
     if (!mounted) return;
-    _refresh();
+    setState(() => _future = widget.repository.listBookings());
   }
 
   Future<void> _editBooking(Booking booking) async {
@@ -79,8 +100,9 @@ class _BookingsPageState extends State<BookingsPage> {
         ),
       ),
     );
-    if (!mounted) return;
-    if (changed == true) _refresh();
+    if (changed == true && mounted) {
+      setState(() => _future = widget.repository.listBookings());
+    }
   }
 
   @override
@@ -90,10 +112,15 @@ class _BookingsPageState extends State<BookingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const PageHeader(
+          PageHeader(
             title: 'Bookings',
             subtitle:
-                'Search bookings, edit reservations, review hall access times, and print agreements.',
+                'Search bookings, review hall access times, and print agreements for signature.',
+            trailing: OutlinedButton.icon(
+              onPressed: _printBlankApplication,
+              icon: const Icon(Icons.description_outlined),
+              label: const Text('Print Blank Application'),
+            ),
           ),
           const SizedBox(height: 18),
           Row(
@@ -136,7 +163,8 @@ class _BookingsPageState extends State<BookingsPage> {
               const Spacer(),
               IconButton(
                 tooltip: 'Refresh',
-                onPressed: _refresh,
+                onPressed: () =>
+                    setState(() => _future = widget.repository.listBookings()),
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -179,9 +207,9 @@ class _BookingsPageState extends State<BookingsPage> {
                       padding: const EdgeInsets.all(14),
                       child: SingleChildScrollView(
                         child: DataTable(
-                          columnSpacing: 20,
+                          columnSpacing: 18,
                           dataRowMinHeight: 66,
-                          dataRowMaxHeight: 80,
+                          dataRowMaxHeight: 78,
                           columns: const [
                             DataColumn(label: Text('REF')),
                             DataColumn(label: Text('EVENT DATE')),
@@ -209,7 +237,7 @@ class _BookingsPageState extends State<BookingsPage> {
                               DataCell(Text(_date(b.eventDate))),
                               DataCell(
                                 SizedBox(
-                                  width: 220,
+                                  width: 205,
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     crossAxisAlignment:
@@ -235,7 +263,7 @@ class _BookingsPageState extends State<BookingsPage> {
                               DataCell(Text(b.hallSpaceName)),
                               DataCell(
                                 SizedBox(
-                                  width: 170,
+                                  width: 160,
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     crossAxisAlignment:
@@ -277,14 +305,14 @@ class _BookingsPageState extends State<BookingsPage> {
                                           size: 16),
                                       label: const Text('Open'),
                                     ),
-                                    const SizedBox(width: 7),
+                                    const SizedBox(width: 6),
                                     OutlinedButton.icon(
                                       onPressed: () => _editBooking(b),
                                       icon: const Icon(Icons.edit_outlined,
                                           size: 16),
                                       label: const Text('Edit'),
                                     ),
-                                    const SizedBox(width: 7),
+                                    const SizedBox(width: 6),
                                     FilledButton.tonalIcon(
                                       onPressed: () => _printContract(b),
                                       icon: const Icon(Icons.print_outlined,
