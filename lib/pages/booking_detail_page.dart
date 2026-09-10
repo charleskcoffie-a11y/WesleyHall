@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 
 import '../models/wesley_models.dart';
 import '../services/contract_service.dart';
+import '../services/payment_receipt_service.dart';
 import '../services/wesley_repository.dart';
 
 class BookingDetailPage extends StatefulWidget {
@@ -154,6 +155,31 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(booking?.status == 'confirmed' ? 'Payment recorded. Booking is CONFIRMED.' : 'Payment recorded.')),
     );
+  }
+
+  Future<void> printPaymentReceipt(PaymentRecord payment) async {
+    final b = booking!;
+    final s = settings!;
+    try {
+      final logo = await widget.repository.loadOrganizationLogo(
+        s.organization.organizationLogoPath,
+      );
+      final bytes = await PaymentReceiptService().build(
+        booking: b,
+        payment: payment,
+        settings: s,
+        organizationLogo: logo,
+      );
+      await Printing.layoutPdf(
+        name: _receiptFileName(b, payment),
+        onLayout: (_) async => bytes,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to print receipt: $e')),
+      );
+    }
   }
 
   Future<void> signContract() async {
@@ -422,6 +448,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                             DataColumn(label: Text('METHOD')),
                             DataColumn(label: Text('REFERENCE')),
                             DataColumn(label: Text('AMOUNT')),
+                            DataColumn(label: Text('RECEIPT')),
                           ],
                           rows: b.payments.map((p) => DataRow(cells: [
                             DataCell(Text(date(p.paymentDate))),
@@ -429,6 +456,13 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                             DataCell(Text(p.paymentMethod)),
                             DataCell(Text(p.paymentReference)),
                             DataCell(Text(money(p.amount))),
+                            DataCell(
+                              OutlinedButton.icon(
+                                onPressed: () => printPaymentReceipt(p),
+                                icon: const Icon(Icons.receipt_long_outlined, size: 17),
+                                label: const Text('Print Receipt'),
+                              ),
+                            ),
                           ])).toList(),
                         ),
                       ),
@@ -506,12 +540,28 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     final rawName = b.clientName.trim().isEmpty
         ? (b.churchGroup.trim().isEmpty ? 'Client' : b.churchGroup)
         : b.clientName;
-    final safeName = rawName
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    final safeName = _safeName(rawName);
     return '${b.referenceNumber} - $safeName';
   }
+
+  String _receiptFileName(Booking b, PaymentRecord p) {
+    final rawName = b.clientName.trim().isEmpty
+        ? (b.churchGroup.trim().isEmpty ? 'Client' : b.churchGroup)
+        : b.clientName;
+    final safeName = _safeName(rawName);
+    final type = p.paymentType
+        .split('_')
+        .map((part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+    return '${b.referenceNumber} - $safeName - $type Receipt';
+  }
+
+  String _safeName(String value) => value
+      .replaceAll(RegExp(r'[\\/:*?"<>|]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   String money(double v) => '\$${v.toStringAsFixed(2)}';
   String date(DateTime d) => '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
