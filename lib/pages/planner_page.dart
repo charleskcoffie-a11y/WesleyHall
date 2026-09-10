@@ -51,10 +51,13 @@ class _PlannerPageState extends State<PlannerPage> {
                   b.eventDate.month == month.month)
               .toList();
           final rentalCount =
-              monthBookings.where((b) => !b.isChurchUse).length;
+              monthBookings.where((b) => !b.isChurchUse && !b.isHold).length;
           final churchCount = monthBookings.where((b) => b.isChurchUse).length;
+          final holdCount = monthBookings
+              .where((b) => b.isHold && !b.isExpiredHold)
+              .length;
           final occupiedDays = monthBookings
-              .where((b) => b.status != 'cancelled')
+              .where((b) => b.status != 'cancelled' && !b.isExpiredHold)
               .map((b) =>
                   '${b.eventDate.year}-${b.eventDate.month}-${b.eventDate.day}')
               .toSet()
@@ -66,7 +69,7 @@ class _PlannerPageState extends State<PlannerPage> {
               PageHeader(
                 title: 'Hall Planner',
                 subtitle:
-                    'A clear view of rentals, church activities, setup time, and hall availability.',
+                    'A clear view of rentals, church activities, temporary holds, setup time, and hall availability.',
                 trailing: FilledButton.icon(
                   onPressed: widget.onNewBooking,
                   icon: const Icon(Icons.add),
@@ -85,6 +88,7 @@ class _PlannerPageState extends State<PlannerPage> {
                         total: monthBookings.length,
                         rentalCount: rentalCount,
                         churchCount: churchCount,
+                        holdCount: holdCount,
                         occupiedDays: occupiedDays,
                       ),
                       const Divider(height: 1),
@@ -171,6 +175,7 @@ class _PlannerPageState extends State<PlannerPage> {
               runSpacing: 7,
               children: [
                 _filterChip('all', 'All'),
+                _filterChip('hold', 'On Hold'),
                 _filterChip('confirmed', 'Confirmed'),
                 _filterChip('awaiting_deposit', 'Awaiting Deposit'),
                 _filterChip('reserved', 'Church Use'),
@@ -206,6 +211,7 @@ class _PlannerPageState extends State<PlannerPage> {
     required int total,
     required int rentalCount,
     required int churchCount,
+    required int holdCount,
     required int occupiedDays,
   }) {
     return Container(
@@ -241,6 +247,8 @@ class _PlannerPageState extends State<PlannerPage> {
           _summaryPill(Icons.event_available_outlined, '$rentalCount', 'Rentals'),
           const SizedBox(width: 8),
           _summaryPill(Icons.church_outlined, '$churchCount', 'Church Use'),
+          const SizedBox(width: 8),
+          _summaryPill(Icons.hourglass_top_outlined, '$holdCount', 'Holds'),
           const SizedBox(width: 8),
           _summaryPill(
               Icons.calendar_view_month_outlined, '$occupiedDays', 'Days Used'),
@@ -302,6 +310,7 @@ class _PlannerPageState extends State<PlannerPage> {
       spacing: 12,
       runSpacing: 6,
       children: [
+        _LegendItem(Color(0xFF8B6FD6), 'Hold'),
         _LegendItem(Color(0xFF41B97A), 'Confirmed'),
         _LegendItem(Color(0xFFF2B43C), 'Awaiting Deposit'),
         _LegendItem(Color(0xFF6F8FD6), 'Church Use'),
@@ -527,8 +536,15 @@ class _PlannerPageState extends State<PlannerPage> {
     final subtitle = b.isChurchUse
         ? (b.churchGroup.trim().isNotEmpty ? b.churchGroup : 'Church Use')
         : b.clientName;
+    final holdInfo = b.isHold
+        ? b.isExpiredHold
+            ? ' • HOLD EXPIRED'
+            : b.holdExpiresAt != null
+                ? ' • HOLD to ${_shortDateTime(b.holdExpiresAt!.toLocal())}'
+                : ' • HOLD'
+        : '';
 
-    return Container(
+    final tile = Container(
       width: double.infinity,
       height: 35,
       margin: const EdgeInsets.only(bottom: 3),
@@ -569,7 +585,7 @@ class _PlannerPageState extends State<PlannerPage> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${_time(b.eventStart)}  •  $subtitle',
+                    '${_time(b.eventStart)}  •  $subtitle$holdInfo',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -586,10 +602,24 @@ class _PlannerPageState extends State<PlannerPage> {
         ],
       ),
     );
+
+    if (!b.isHold || b.holdExpiresAt == null) return tile;
+    return Tooltip(
+      message: b.isExpiredHold
+          ? 'Temporary hold expired ${_fullDateTime(b.holdExpiresAt!.toLocal())}'
+          : 'Temporary hold expires ${_fullDateTime(b.holdExpiresAt!.toLocal())}',
+      child: tile,
+    );
   }
 
   (Color, Color, Color) _statusColors(String status) {
     switch (status) {
+      case 'hold':
+        return (
+          const Color(0xFFF1ECFF),
+          const Color(0xFF543B87),
+          const Color(0xFF8B6FD6),
+        );
       case 'confirmed':
         return (
           const Color(0xFFE2F6EC),
@@ -624,6 +654,7 @@ class _PlannerPageState extends State<PlannerPage> {
   }
 
   IconData _eventIcon(Booking booking) {
+    if (booking.isHold) return Icons.hourglass_top_outlined;
     if (booking.isChurchUse) return Icons.church_outlined;
     final text = booking.eventDetails.toLowerCase();
     if (text.contains('wedding')) return Icons.favorite_outline;
@@ -644,6 +675,11 @@ class _PlannerPageState extends State<PlannerPage> {
     final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
     return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
   }
+
+  String _shortDateTime(DateTime d) => '${d.month}/${d.day} ${_time(d)}';
+
+  String _fullDateTime(DateTime d) =>
+      '${d.month}/${d.day}/${d.year} ${_time(d)}';
 
   String _monthName(DateTime d) {
     const names = [
