@@ -35,6 +35,7 @@ class _NewBookingPageState extends State<NewBookingPage> {
   String reservationType = 'external_rental';
   String recurrence = 'none';
   int recurrenceCount = 4;
+  int holdHours = 48;
   DateTime eventDate = DateTime.now().add(const Duration(days: 7));
   TimeOfDay start = const TimeOfDay(hour: 17, minute: 0);
   TimeOfDay end = const TimeOfDay(hour: 23, minute: 0);
@@ -70,6 +71,7 @@ class _NewBookingPageState extends State<NewBookingPage> {
     final spaces = value.spaces.where((e) => e.active).toList();
     setState(() {
       settings = value;
+      holdHours = value.rules.holdHours;
       if (spaces.isNotEmpty) {
         hallId = spaces.first.id;
         hallCharge.text = spaces.first.baseRate.toStringAsFixed(2);
@@ -204,10 +206,12 @@ class _NewBookingPageState extends State<NewBookingPage> {
     return conflicts;
   }
 
-  Future<void> save() async {
+  Future<void> save({bool asHold = false}) async {
     if (!formKey.currentState!.validate() || settings == null || hallId == null) {
       return;
     }
+
+    if (asHold && isChurchUse) return;
 
     final dates = _occurrenceDates();
     setState(() => saving = true);
@@ -221,7 +225,7 @@ class _NewBookingPageState extends State<NewBookingPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Cannot save the series. Hall conflict on $preview$extra. Nothing was saved.',
+              'Cannot save. Hall conflict on $preview$extra. Nothing was saved.',
             ),
           ),
         );
@@ -271,7 +275,11 @@ class _NewBookingPageState extends State<NewBookingPage> {
           hallSpaceName: hall.name,
           hallCharge: isChurchUse ? 0.0 : hallValue,
           extraTimeCharge: isChurchUse ? 0.0 : extraTime,
-          status: isChurchUse ? 'reserved' : 'awaiting_deposit',
+          status: isChurchUse
+              ? 'reserved'
+              : asHold
+                  ? 'hold'
+                  : 'awaiting_deposit',
           extras: extras,
           reservationType: reservationType,
           churchGroup: isChurchUse ? churchGroup.text.trim() : '',
@@ -280,6 +288,8 @@ class _NewBookingPageState extends State<NewBookingPage> {
           damageDepositRequired:
               isChurchUse ? 0.0 : s.rules.damageDepositAmount,
           notes: notes.text.trim(),
+          holdExpiresAt:
+              asHold ? DateTime.now().add(Duration(hours: holdHours)) : null,
         );
 
         await widget.repository.createBooking(booking);
@@ -289,11 +299,13 @@ class _NewBookingPageState extends State<NewBookingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isChurchUse && dates.length > 1
-                ? '${dates.length} recurring church reservations saved.'
-                : isChurchUse
-                    ? 'Church use reservation saved. No payment required.'
-                    : 'Rental booking saved. Status: Awaiting Deposit.',
+            asHold
+                ? 'Date held for $holdHours hours. The hold will stop blocking the hall after it expires.'
+                : isChurchUse && dates.length > 1
+                    ? '${dates.length} recurring church reservations saved.'
+                    : isChurchUse
+                        ? 'Church use reservation saved. No payment required.'
+                        : 'Rental booking saved. Status: Awaiting Deposit.',
           ),
         ),
       );
@@ -651,10 +663,65 @@ class _NewBookingPageState extends State<NewBookingPage> {
                                 const Divider(),
                                 _moneyLine('Refundable Damage Deposit',
                                     s.rules.damageDepositAmount),
+                                const SizedBox(height: 18),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF6DF),
+                                    borderRadius: BorderRadius.circular(11),
+                                    border: Border.all(
+                                      color: const Color(0xFFE8C76B),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Temporary Hold',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w800),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      const Text(
+                                        'Use this when the client wants the date reserved temporarily before paying the deposit.',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          const Text('Hold for:'),
+                                          const SizedBox(width: 8),
+                                          DropdownButton<int>(
+                                            value: holdHours,
+                                            items: const [24, 48, 72]
+                                                .map((hours) => DropdownMenuItem(
+                                                      value: hours,
+                                                      child: Text('$hours hours'),
+                                                    ))
+                                                .toList(),
+                                            onChanged: (value) {
+                                              if (value != null) {
+                                                setState(() => holdHours = value);
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                               const SizedBox(height: 20),
+                              if (!isChurchUse) ...[
+                                OutlinedButton.icon(
+                                  onPressed: saving ? null : () => save(asHold: true),
+                                  icon: const Icon(Icons.schedule_outlined),
+                                  label: Text('Hold Date for $holdHours Hours'),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
                               FilledButton.icon(
-                                onPressed: saving ? null : save,
+                                onPressed: saving ? null : () => save(),
                                 icon: Icon(isChurchUse
                                     ? Icons.event_available_outlined
                                     : Icons.save_outlined),
