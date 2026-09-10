@@ -161,8 +161,7 @@ class _PlannerPageState extends State<PlannerPage> {
                     month = DateTime(now.year, now.month);
                   }),
                   icon: const Icon(Icons.today_outlined, size: 19),
-                  label: const Text('Today',
-                      style: TextStyle(fontSize: 13)),
+                  label: const Text('Today', style: TextStyle(fontSize: 13)),
                 ),
               ],
             );
@@ -384,6 +383,7 @@ class _PlannerPageState extends State<PlannerPage> {
                 final cellHeight =
                     (constraints.maxHeight - spacing * 5) / 6;
                 final ratio = cellWidth / cellHeight;
+                final maxVisibleEvents = cellHeight >= 125 ? 2 : 1;
 
                 return GridView.builder(
                   physics: const NeverScrollableScrollPhysics(),
@@ -411,6 +411,7 @@ class _PlannerPageState extends State<PlannerPage> {
                       isToday: isToday,
                       weekend: weekend,
                       events: events,
+                      maxVisibleEvents: maxVisibleEvents,
                     );
                   },
                 );
@@ -428,6 +429,7 @@ class _PlannerPageState extends State<PlannerPage> {
     required bool isToday,
     required bool weekend,
     required List<Booking> events,
+    required int maxVisibleEvents,
   }) {
     final Color background;
     if (!inMonth) {
@@ -438,8 +440,12 @@ class _PlannerPageState extends State<PlannerPage> {
       background = Colors.white;
     }
 
+    final visibleEvents = events.take(maxVisibleEvents).toList();
+    final remaining = events.length - visibleEvents.length;
+
     return Container(
-      padding: const EdgeInsets.all(8),
+      clipBehavior: Clip.hardEdge,
+      padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(12),
@@ -460,68 +466,63 @@ class _PlannerPageState extends State<PlannerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 29,
-                height: 29,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isToday ? _green : Colors.transparent,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '${day.day}',
-                  style: TextStyle(
-                    color: isToday
-                        ? Colors.white
-                        : inMonth
-                            ? _ink
-                            : const Color(0xFFAAB6B0),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              if (events.isNotEmpty)
+          SizedBox(
+            height: 25,
+            child: Row(
+              children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  width: 25,
+                  height: 25,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0F5F2),
-                    borderRadius: BorderRadius.circular(8),
+                    color: isToday ? _green : Colors.transparent,
+                    shape: BoxShape.circle,
                   ),
                   child: Text(
-                    '${events.length}',
-                    style: const TextStyle(
-                      fontSize: 10,
+                    '${day.day}',
+                    style: TextStyle(
+                      color: isToday
+                          ? Colors.white
+                          : inMonth
+                              ? _ink
+                              : const Color(0xFFAAB6B0),
                       fontWeight: FontWeight.w800,
-                      color: _green,
+                      fontSize: 13,
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          ...events.take(2).map(_eventTile),
-          if (events.length > 2)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F3),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  '+${events.length - 2} more',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: _muted,
-                    fontWeight: FontWeight.w600,
+                const Spacer(),
+                if (events.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F5F2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${events.length}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _green,
+                      ),
+                    ),
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 3),
+          ...visibleEvents.map(_eventTile),
+          if (remaining > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, left: 2),
+              child: Text(
+                '+$remaining more',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: _green,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -538,11 +539,11 @@ class _PlannerPageState extends State<PlannerPage> {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 4),
+      margin: const EdgeInsets.only(bottom: 3),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.$1,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.$3.withValues(alpha: .28)),
       ),
       child: IntrinsicHeight(
@@ -551,8 +552,9 @@ class _PlannerPageState extends State<PlannerPage> {
             Container(width: 4, color: colors.$3),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(7, 6, 7, 6),
+                padding: const EdgeInsets.fromLTRB(7, 4, 7, 4),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
@@ -561,46 +563,48 @@ class _PlannerPageState extends State<PlannerPage> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            _time(b.eventStart),
+                            b.eventDetails,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
                               color: colors.$2,
-                              fontWeight: FontWeight.w700,
                             ),
-                          ),
-                        ),
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: colors.$3,
-                            shape: BoxShape.circle,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      b.eventDetails,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: colors.$2,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: colors.$2.withValues(alpha: .82),
-                        fontWeight: FontWeight.w500,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          _time(b.eventStart),
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: colors.$2,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text('•',
+                            style: TextStyle(
+                                fontSize: 9.5, color: colors.$2)),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              color: colors.$2.withValues(alpha: .85),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
