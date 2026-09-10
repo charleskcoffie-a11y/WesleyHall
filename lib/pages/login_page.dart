@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/favicon.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -28,6 +30,7 @@ class _LoginPageState extends State<LoginPage> {
       final bytes = await Supabase.instance.client.storage
           .from('wesley-hall-private')
           .download('organization-logos/church-logo.png');
+      setBrowserFavicon(bytes);
       if (mounted) setState(() => _logoBytes = bytes);
     } catch (_) {
       // Fall back to the church icon if no logo has been uploaded yet.
