@@ -171,6 +171,22 @@ class PaymentRecord {
   final String notes;
 }
 
+class AuditEvent {
+  const AuditEvent({
+    required this.id,
+    required this.entityType,
+    required this.action,
+    required this.summary,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String entityType;
+  final String action;
+  final String summary;
+  final DateTime createdAt;
+}
+
 class Booking {
   const Booking({
     required this.id,
