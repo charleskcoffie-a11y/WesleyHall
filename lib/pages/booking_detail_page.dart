@@ -269,7 +269,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         clientSignature: clientSignature,
       );
       await Printing.layoutPdf(
-        name: '${b.referenceNumber} - Wesley Hall Agreement',
+        name: _contractFileName(b),
         onLayout: (_) async => bytes,
       );
     } catch (e) {
@@ -424,6 +424,17 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
           ),
         ),
       );
+
+  String _contractFileName(Booking b) {
+    final rawName = b.clientName.trim().isEmpty
+        ? (b.churchGroup.trim().isEmpty ? 'Client' : b.churchGroup)
+        : b.clientName;
+    final safeName = rawName
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return '${b.referenceNumber} - $safeName';
+  }
 
   String money(double v) => '\$${v.toStringAsFixed(2)}';
   String date(DateTime d) => '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
