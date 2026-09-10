@@ -67,26 +67,32 @@ class SupabaseWesleyRepository implements WesleyRepository {
         chargeSetupTime: rules['charge_setup_time'] as bool? ?? false,
         chargeCleanupTime: rules['charge_cleanup_time'] as bool? ?? false,
       ),
-      spaces: spacesRows.map<HallSpace>((m) => HallSpace(
-            id: m['id'].toString(),
-            name: m['name'] as String,
-            baseRate: (m['base_rate'] as num?)?.toDouble() ?? 0,
-            capacity: (m['capacity'] as num?)?.toInt(),
-            active: m['active'] as bool? ?? true,
-          )).toList(),
-      services: servicesRows.map<ServiceItem>((m) => ServiceItem(
-            id: m['id'].toString(),
-            name: m['name'] as String,
-            pricingType: m['pricing_type'] as String? ?? 'flat',
-            price: (m['price'] as num?)?.toDouble() ?? 0,
-            active: m['active'] as bool? ?? true,
-          )).toList(),
-      terms: termsRows.map<RentalTerm>((m) => RentalTerm(
-            id: m['id'].toString(),
-            text: m['term_text'] as String? ?? '',
-            order: (m['display_order'] as num?)?.toInt() ?? 0,
-            active: m['active'] as bool? ?? true,
-          )).toList(),
+      spaces: spacesRows
+          .map<HallSpace>((m) => HallSpace(
+                id: m['id'].toString(),
+                name: m['name'] as String,
+                baseRate: (m['base_rate'] as num?)?.toDouble() ?? 0,
+                capacity: (m['capacity'] as num?)?.toInt(),
+                active: m['active'] as bool? ?? true,
+              ))
+          .toList(),
+      services: servicesRows
+          .map<ServiceItem>((m) => ServiceItem(
+                id: m['id'].toString(),
+                name: m['name'] as String,
+                pricingType: m['pricing_type'] as String? ?? 'flat',
+                price: (m['price'] as num?)?.toDouble() ?? 0,
+                active: m['active'] as bool? ?? true,
+              ))
+          .toList(),
+      terms: termsRows
+          .map<RentalTerm>((m) => RentalTerm(
+                id: m['id'].toString(),
+                text: m['term_text'] as String? ?? '',
+                order: (m['display_order'] as num?)?.toInt() ?? 0,
+                active: m['active'] as bool? ?? true,
+              ))
+          .toList(),
     );
   }
 
@@ -313,30 +319,36 @@ class SupabaseWesleyRepository implements WesleyRepository {
     }).toList();
   }
 
+  Map<String, dynamic> _bookingValues(Booking booking) => {
+        'client_name': booking.clientName,
+        'client_address': booking.clientAddress,
+        'phone': booking.phone,
+        'email': booking.email,
+        'event_date': _dateOnly(booking.eventDate),
+        'event_start': booking.eventStart.toIso8601String(),
+        'event_end': booking.eventEnd.toIso8601String(),
+        'access_start': booking.accessStart.toIso8601String(),
+        'vacate_end': booking.vacateEnd.toIso8601String(),
+        'event_details': booking.eventDetails,
+        'guest_count': booking.guestCount,
+        'hall_space_id': booking.hallSpaceId,
+        'hall_charge': booking.hallCharge,
+        'extra_time_charge': booking.extraTimeCharge,
+        'status': booking.status,
+        'reservation_type': booking.reservationType,
+        'church_group': booking.churchGroup,
+        'booking_deposit_percent': booking.bookingDepositPercent,
+        'damage_deposit_required': booking.damageDepositRequired,
+        'notes': booking.notes,
+      };
+
   @override
   Future<void> createBooking(Booking booking) async {
-    final inserted = await client.from('wesley_bookings').insert({
-      'client_name': booking.clientName,
-      'client_address': booking.clientAddress,
-      'phone': booking.phone,
-      'email': booking.email,
-      'event_date': _dateOnly(booking.eventDate),
-      'event_start': booking.eventStart.toIso8601String(),
-      'event_end': booking.eventEnd.toIso8601String(),
-      'access_start': booking.accessStart.toIso8601String(),
-      'vacate_end': booking.vacateEnd.toIso8601String(),
-      'event_details': booking.eventDetails,
-      'guest_count': booking.guestCount,
-      'hall_space_id': booking.hallSpaceId,
-      'hall_charge': booking.hallCharge,
-      'extra_time_charge': booking.extraTimeCharge,
-      'status': booking.status,
-      'reservation_type': booking.reservationType,
-      'church_group': booking.churchGroup,
-      'booking_deposit_percent': booking.bookingDepositPercent,
-      'damage_deposit_required': booking.damageDepositRequired,
-      'notes': booking.notes,
-    }).select('id').single();
+    final inserted = await client
+        .from('wesley_bookings')
+        .insert(_bookingValues(booking))
+        .select('id')
+        .single();
 
     final bookingId = inserted['id'].toString();
     if (!booking.isChurchUse && booking.extras.isNotEmpty) {
@@ -344,6 +356,32 @@ class SupabaseWesleyRepository implements WesleyRepository {
             booking.extras
                 .map((e) => {
                       'booking_id': bookingId,
+                      'service_id': e.serviceId,
+                      'quantity': e.quantity,
+                      'unit_price': e.unitPrice,
+                    })
+                .toList(),
+          );
+    }
+  }
+
+  @override
+  Future<void> updateBooking(Booking booking) async {
+    await client
+        .from('wesley_bookings')
+        .update(_bookingValues(booking))
+        .eq('id', booking.id);
+
+    await client
+        .from('wesley_booking_services')
+        .delete()
+        .eq('booking_id', booking.id);
+
+    if (!booking.isChurchUse && booking.extras.isNotEmpty) {
+      await client.from('wesley_booking_services').insert(
+            booking.extras
+                .map((e) => {
+                      'booking_id': booking.id,
                       'service_id': e.serviceId,
                       'quantity': e.quantity,
                       'unit_price': e.unitPrice,
