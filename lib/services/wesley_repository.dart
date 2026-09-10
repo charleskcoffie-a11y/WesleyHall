@@ -24,6 +24,7 @@ abstract class WesleyRepository {
 
   Future<List<Booking>> listBookings();
   Future<void> createBooking(Booking booking);
+  Future<void> updateBooking(Booking booking);
   Future<void> addPayment(String bookingId, PaymentRecord payment);
   Future<void> updateBookingStatus(String bookingId, String status);
   Future<bool> hasBookingConflict({
