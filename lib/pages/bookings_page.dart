@@ -92,12 +92,18 @@ class _BookingsPageState extends State<BookingsPage> {
 
   Future<void> _uploadPaperApplication(Booking booking) async {
     try {
-      final file = await FilePicker.pickFile(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
+        allowMultiple: false,
+        withData: true,
       );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        throw Exception('Unable to read the selected file.');
+      }
       var extension = (file.extension ?? 'pdf').toLowerCase();
       if (extension == 'jpeg') extension = 'jpg';
 
