@@ -23,7 +23,7 @@ abstract class WesleyRepository {
   Future<Uint8List?> loadClientSignature(String? path);
 
   Future<List<Booking>> listBookings();
-  Future<void> createBooking(Booking booking);
+  Future<String> createBooking(Booking booking);
   Future<void> updateBooking(Booking booking);
   Future<void> addPayment(String bookingId, PaymentRecord payment);
   Future<void> updateBookingStatus(String bookingId, String status);
