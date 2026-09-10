@@ -75,6 +75,7 @@ class RentalRules {
     required this.damageDepositAmount,
     required this.chargeSetupTime,
     required this.chargeCleanupTime,
+    this.holdHours = 48,
   });
 
   final int standardRentalHours;
@@ -87,6 +88,7 @@ class RentalRules {
   final double damageDepositAmount;
   final bool chargeSetupTime;
   final bool chargeCleanupTime;
+  final int holdHours;
 }
 
 class HallSpace {
@@ -216,6 +218,7 @@ class Booking {
     this.notes = '',
     this.clientSignaturePath,
     this.clientSignedAt,
+    this.holdExpiresAt,
   });
 
   final String id;
@@ -245,8 +248,12 @@ class Booking {
   final String notes;
   final String? clientSignaturePath;
   final DateTime? clientSignedAt;
+  final DateTime? holdExpiresAt;
 
   bool get isChurchUse => reservationType == 'church_use';
+  bool get isHold => status == 'hold';
+  bool get isExpiredHold =>
+      isHold && holdExpiresAt != null && holdExpiresAt!.isBefore(DateTime.now());
 
   double get extrasTotal => isChurchUse
       ? 0
@@ -289,6 +296,7 @@ class Booking {
     List<PaymentRecord>? payments,
     String? clientSignaturePath,
     DateTime? clientSignedAt,
+    DateTime? holdExpiresAt,
   }) {
     return Booking(
       id: id,
@@ -318,6 +326,7 @@ class Booking {
       notes: notes,
       clientSignaturePath: clientSignaturePath ?? this.clientSignaturePath,
       clientSignedAt: clientSignedAt ?? this.clientSignedAt,
+      holdExpiresAt: holdExpiresAt ?? this.holdExpiresAt,
     );
   }
 }
