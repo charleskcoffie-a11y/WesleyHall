@@ -51,13 +51,22 @@ class ContractService {
                         ? pw.CrossAxisAlignment.center
                         : pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text(org.hallName.toUpperCase(),
-                          style: pw.TextStyle(
-                              fontSize: 20,
-                              fontWeight: pw.FontWeight.bold)),
+                      pw.Text(
+                        'GHANA METHODIST CHURCH OF TORONTO',
+                        style: pw.TextStyle(
+                          fontSize: 18,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
                       pw.SizedBox(height: 3),
-                      pw.Text(org.churchName,
-                          style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text(
+                        org.hallName.toUpperCase(),
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 2),
                       pw.Text(org.address,
                           style: const pw.TextStyle(fontSize: 9)),
                       pw.Text('${org.phone}  |  ${org.email}',
