@@ -194,11 +194,7 @@ class _PlannerPageState extends State<PlannerPage> {
             }
 
             return Row(
-              children: [
-                monthControls,
-                const Spacer(),
-                Flexible(child: filters),
-              ],
+              children: [monthControls, const Spacer(), Flexible(child: filters)],
             );
           },
         ),
@@ -246,7 +242,8 @@ class _PlannerPageState extends State<PlannerPage> {
           const SizedBox(width: 8),
           _summaryPill(Icons.church_outlined, '$churchCount', 'Church Use'),
           const SizedBox(width: 8),
-          _summaryPill(Icons.calendar_view_month_outlined, '$occupiedDays', 'Days Used'),
+          _summaryPill(
+              Icons.calendar_view_month_outlined, '$occupiedDays', 'Days Used'),
           const Spacer(),
           _legend(),
         ],
@@ -336,10 +333,7 @@ class _PlannerPageState extends State<PlannerPage> {
   Widget _calendar(BuildContext context, List<Booking> bookings) {
     final first = DateTime(month.year, month.month, 1);
     final firstVisible = first.subtract(Duration(days: first.weekday % 7));
-    final days = List.generate(
-      42,
-      (i) => firstVisible.add(Duration(days: i)),
-    );
+    final days = List.generate(42, (i) => firstVisible.add(Duration(days: i)));
     const headers = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
     return Padding(
@@ -378,12 +372,10 @@ class _PlannerPageState extends State<PlannerPage> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const spacing = 7.0;
-                final cellWidth =
-                    (constraints.maxWidth - spacing * 6) / 7;
-                final cellHeight =
-                    (constraints.maxHeight - spacing * 5) / 6;
+                final cellWidth = (constraints.maxWidth - spacing * 6) / 7;
+                final cellHeight = (constraints.maxHeight - spacing * 5) / 6;
                 final ratio = cellWidth / cellHeight;
-                final maxVisibleEvents = cellHeight >= 125 ? 2 : 1;
+                final maxVisibleEvents = cellHeight >= 118 ? 2 : 1;
 
                 return GridView.builder(
                   physics: const NeverScrollableScrollPhysics(),
@@ -445,7 +437,7 @@ class _PlannerPageState extends State<PlannerPage> {
 
     return Container(
       clipBehavior: Clip.hardEdge,
-      padding: const EdgeInsets.all(7),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(12),
@@ -467,12 +459,12 @@ class _PlannerPageState extends State<PlannerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 25,
+            height: 21,
             child: Row(
               children: [
                 Container(
-                  width: 25,
-                  height: 25,
+                  width: 21,
+                  height: 21,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: isToday ? _green : Colors.transparent,
@@ -487,12 +479,13 @@ class _PlannerPageState extends State<PlannerPage> {
                               ? _ink
                               : const Color(0xFFAAB6B0),
                       fontWeight: FontWeight.w800,
-                      fontSize: 13,
+                      fontSize: 12.5,
+                      height: 1,
                     ),
                   ),
                 ),
                 const Spacer(),
-                if (events.isNotEmpty)
+                if (remaining > 0)
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -501,31 +494,29 @@ class _PlannerPageState extends State<PlannerPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${events.length}',
+                      '+$remaining',
                       style: const TextStyle(
-                        fontSize: 10,
+                        fontSize: 9.5,
                         fontWeight: FontWeight.w800,
                         color: _green,
+                        height: 1,
                       ),
+                    ),
+                  )
+                else if (events.isNotEmpty)
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: _green,
+                      shape: BoxShape.circle,
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           ...visibleEvents.map(_eventTile),
-          if (remaining > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 2, left: 2),
-              child: Text(
-                '+$remaining more',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: _green,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -539,6 +530,7 @@ class _PlannerPageState extends State<PlannerPage> {
 
     return Container(
       width: double.infinity,
+      height: 35,
       margin: const EdgeInsets.only(bottom: 3),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -546,72 +538,52 @@ class _PlannerPageState extends State<PlannerPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.$3.withValues(alpha: .28)),
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Container(width: 4, color: colors.$3),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(7, 4, 7, 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(_eventIcon(b), size: 12, color: colors.$2),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            b.eventDetails,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: colors.$2,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(
-                          _time(b.eventStart),
+      child: Row(
+        children: [
+          Container(width: 4, color: colors.$3),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(7, 3, 7, 3),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(_eventIcon(b), size: 11, color: colors.$2),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          b.eventDetails,
                           maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 9.5,
+                            fontSize: 11.5,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
                             color: colors.$2,
-                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(width: 5),
-                        Text('•',
-                            style: TextStyle(
-                                fontSize: 9.5, color: colors.$2)),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 9.5,
-                              color: colors.$2.withValues(alpha: .85),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${_time(b.eventStart)}  •  $subtitle',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      height: 1,
+                      color: colors.$2.withValues(alpha: .88),
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
