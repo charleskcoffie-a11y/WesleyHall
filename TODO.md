@@ -37,8 +37,13 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
   - Update non-scheduling details on future occurrences.
   - Cancel one occurrence, this-and-future, or the whole remaining series.
   - Selected custom dates can be added as a later enhancement.
-- [ ] Duplicate / Copy Reservation
-  - Copy an existing booking into a new draft with a new date/reference.
+- [x] Duplicate / Copy Reservation
+  - Copy an existing rental or church-use reservation into a fresh reservation.
+  - Suggest the next matching weekday and allow date/time/hall changes before saving.
+  - Recheck hall conflicts before creating the copy.
+  - Use current hall/service rates and current deposit rules.
+  - Assign a new booking reference automatically.
+  - Do not copy payments, signatures, documents, holds, inspections, or recurring-series links.
 - [x] Booking Completion / Damage Inspection
   - Record no damage / damage found.
   - Add inspection notes and photos.
@@ -96,7 +101,7 @@ This checklist tracks the features that will turn Wesley Hall into a complete ha
 5. Booking Completion / Damage Inspection - COMPLETE
 6. Staff Roles & Permissions - COMPLETE
 7. Document Centre - COMPLETE
-8. Duplicate / Copy Reservation - NEXT
-9. Communication Centre
+8. Duplicate / Copy Reservation - COMPLETE
+9. Communication Centre - NEXT
 10. Tablet Reception Mode
 11. Go-live cleanup / backup tools
